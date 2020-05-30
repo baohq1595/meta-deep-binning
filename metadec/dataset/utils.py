@@ -171,7 +171,6 @@ def build_overlap_graph(reads, labels, qmer_length, num_shared_reads):
     Build overlapping graph
     '''
     # Create hash table with q-mers are keys
-    print("Building hash table...")
     lmers_dict=dict()
     for idx, r in enumerate(reads):
         for j in range(0,len(r)-qmer_length+1):
@@ -181,7 +180,7 @@ def build_overlap_graph(reads, labels, qmer_length, num_shared_reads):
             else:
                 lmers_dict[lmer] = [idx]
 
-    print('Building edges...')
+    # Building edges
     E=dict()
     for lmer in lmers_dict:
         for e in it.combinations(lmers_dict[lmer],2):
@@ -195,17 +194,19 @@ def build_overlap_graph(reads, labels, qmer_length, num_shared_reads):
                 E[e_curr] = 1
     E_Filtered = {kv[0]: kv[1] for kv in E.items() if kv[1] >= num_shared_reads}
     
-    print('Building graph...')
+    # Initialize graph
     G = nx.Graph()
-    print('Adding nodes...')
+    
+    # Add nodes to graph
     color_map = {0: 'red', 1: 'green', 2: 'blue', 3: 'yellow', 4: 'darkcyan', 5: 'violet'}
     for i in range(0, len(labels)):
         G.add_node(i, label=labels[i])
 
-    print('Adding edges...')
+    # Add edges to graph
     for kv in E_Filtered.items():
         G.add_edge(kv[0][0], kv[0][1], weight=kv[1])
-    print('Graph constructed!')
+
+    # Finishing....
     
     return G
 

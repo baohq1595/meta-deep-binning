@@ -21,30 +21,28 @@ class SimGenomeDataset():
             graph_file: calculated groups and seeds (json).
         '''
         # Read fasta dataset
-        print('Reading fna file...')
         self.reads, self.labels = load_meta_reads(fna_file, type='fasta')
 
-        print('Creating document from reads...')
+        # Creating document from reads...
         dictionary, documents = create_document(self.reads, kmers)
 
-        print('Creating corpus...')
+        #( Creating corpus...
         corpus = create_corpus(dictionary, documents)
 
         self.groups = []
         self.seeds = []
 
         if is_deserialize:
-            print('Deserializing data...')
+            # Deserializing data...
             self.groups, self.seeds = self.deserialize_data(graph_file, self.reads)
         else:
             # Build overlapping (reads) graph
-            print('Building graph from scratch...')
             graph = build_overlap_graph(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads)
-            print('Partitioning graph...')
+            # Partitioning graph...
             self.groups, self.seeds = metis_partition_groups_seeds(graph, maximum_seed_size)
 
                 
-        print('Computing features...')
+        # Computing features...
         self.kmer_features = compute_kmer_dist(dictionary, corpus, self.groups, self.seeds, only_seed=only_seed)
         del dictionary
         del corpus
@@ -55,13 +53,14 @@ class SimGenomeDataset():
             self.serialize_data(self.groups, self.seeds, graph_file)
 
         if is_normalize:
-            print('Normalizing...')
+            # Normalizing...
             scaler = StandardScaler()
             self.kmer_features = scaler.fit_transform(self.kmer_features)
-
-        print('Finish.')
     
     def serialize_data(self, groups, seeds, graph_file):
+        '''
+        Save groups and seeds id to json file
+        '''
         serialize_dict = {
             'groups': groups,
             'seeds': seeds
@@ -73,6 +72,9 @@ class SimGenomeDataset():
         return graph_file
     
     def deserialize_data(self, graph_file, reads):
+        '''
+        Read groups and seeds from file
+        '''
         with open(graph_file, 'r') as fg:
             data = json.load(fg)
 
