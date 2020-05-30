@@ -1,5 +1,6 @@
 import glob, os, time
 import json
+import argparse
 
 from keras.models import Model
 from keras.optimizers import SGD, Adam
@@ -16,44 +17,56 @@ import sys
 sys.path.append('.')
 
 
+RESULT_DIR = 'results'
 GEN_DATA_DIR = 'data'
-LOG_DIR = 'results\log'
-MODEL_DIR = 'results\model'
 
+# Versioning each runs
 ARCH = 'dec_genomics'
 DATE = '20200530'
+
+# Training batchsize
+BATCH_SIZE = 1
+# Maximum iterations for clustering optimization step
+MAX_ITERS = 10
+# Number of epochs for pretraining
+PRETRAIN_EPOCHS = 5
+# Interval for updating the training status
+UPDATE_INTERVAL = 1
+# Tolerance threshold to stop clustering optimization step
+TOL = 0.000001
+# Trained weight for pretrained autoencoder
+AE_WEIGHTS = None
+# Dir contains raw fasta data
+DATASET_DIR = GEN_DATA_DIR
+# Specifc dataset or all of them
+DATASET_NAME = 'S1'
 
 # MODEL_DIR = f'/content/drive/My Drive/DL/{ARCH}/{DATE}/models'
 # LOG_DIR = f'/content/drive/My Drive/DL/{ARCH}/{DATE}/logs/'
 # GEN_DATA_DIR = f'/content/drive/My Drive/DL/data/gene/'
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--data_dir', type=str, help='directory contain fasta file')
+parser.add_argument('--dataset_name', type=str, help='specific name of dataset to run'\
+                    '(all is run every found dataset), e.g S1.fna, name is S1')
+parser.add_argument('--result_dir', type=str, default='results', help='directory for saving the resuls')
+parser.add_argument('--verbose', help='Whether to print log in terminal', action='store_true')
+
+args = parser.parse_args()
+
+verbose = args.verbose
+
+DATASET_NAME = args.dataset_name if args.dataset_name else DATASET_NAME
+GEN_DATA_DIR = args.data_dir if args.data_dir else GEN_DATA_DIR
+RESULT_DIR = args.result_dir if args.result_dir else RESULT_DIR
+
+LOG_DIR = f'{RESULT_DIR}\log'
+MODEL_DIR = f'{RESULT_DIR}\model'
+
+
 for d in [LOG_DIR, MODEL_DIR]:
     if not os.path.exists(d):
         os.makedirs(d)
-
-# Training batchsize
-BATCH_SIZE = 1
-
-# Maximum iterations for clustering optimization step
-MAX_ITERS = 10
-
-# Number of epochs for pretraining
-PRETRAIN_EPOCHS = 5
-
-# Interval for updating the training status
-UPDATE_INTERVAL = 1
-
-# Tolerance threshold to stop clustering optimization step
-TOL = 0.000001
-
-# Trained weight for pretrained autoencoder
-AE_WEIGHTS = None
-
-# Dir contains raw fasta data
-DATASET_DIR = GEN_DATA_DIR
-
-# Specifc dataset or all of them
-DATASET_NAME = 'S1'
 
 # Dir for saving training results
 SAVE_DIR = os.path.join(MODEL_DIR, ARCH, DATE)
@@ -97,10 +110,11 @@ for dataset in raw_datasets:
     is_deserialize = os.path.exists(os.path.join(processed_dir, dataset_name + '.json'))
     n_clusters = n_clusters_mapping[dataset_name]
     
-    # Read dataset
-    print(f'Processing dataset {dataset_name}...')
-    print(f'Prior number of clusters: {n_clusters}...')
-    print(f'Prior number of shared reads: {num_shared_read}...')
+    if verbose:
+        # Read dataset
+        print(f'Processing dataset {dataset_name}...')
+        print(f'Prior number of clusters: {n_clusters}...')
+        print(f'Prior number of shared reads: {num_shared_read}...')
 
     try:
         seed_kmer_features, labels, groups, seeds = load_genomics(
@@ -154,13 +168,16 @@ for dataset in raw_datasets:
     y_pred = dec.fit(x=seed_kmer_features, y=labels, grps=groups, n_clusters=n_clusters, tol=TOL, maxiter=MAX_ITERS, batch_size=BATCH_SIZE,
                       update_interval=UPDATE_INTERVAL, save_dir=save_dir)
     
-    print('...')
+    if verbose:
+        print('...')
     latent = dec.encoder.predict(seed_kmer_features)
     y_pred = dec.predict(seed_kmer_features)
-    
-    print('Saving results...')
+
+    if verbose:
+        print('Saving results...')
     store_results(groups, seed_kmer_features, latent, labels, y_pred,
                   n_clusters, dataset_name, save_dir=os.path.join(LOG_DIR, dataset_name))
-    print(f'Finish clustering for dataset {dataset_name}.')
-    print('F1-score:', genome_acc(groups, y_pred, labels, n_clusters)[2])
-    print('Clustering time: ', (time.time() - t0))
+    if verbose:
+        print(f'Finish clustering for dataset {dataset_name}.')
+        print('F1-score:', genome_acc(groups, y_pred, labels, n_clusters)[2])
+        print('Clustering time: ', (time.time() - t0))
