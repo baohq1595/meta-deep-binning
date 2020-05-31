@@ -7,6 +7,7 @@ import seaborn as sns
 import pandas as pd
 import time, os
 import numpy as np
+from collections import defaultdict
 
 def get_group_label(groups, labels):
     # Assign groups labels from reads labels
@@ -14,12 +15,9 @@ def get_group_label(groups, labels):
     # [0 0 0 0 1 1 0] -> group has label 0 (5 > 2)
     grps_label = []
     for group in groups:
-        lb_type = {}
+        lb_type = defaultdict(lambda: 0)
         for node in group:
-            if labels[node] not in list(lb_type.keys()):
-                lb_type[labels[node]] = 1
-            else:
-                lb_type[labels[node]] += 1
+            lb_type[labels[node]] += 1
         max_val = 0
         key = -1
         for kv in lb_type.items():
