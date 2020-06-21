@@ -159,6 +159,9 @@ class IDEC(object):
                     if f1_score > best_acc:
                         best_acc = f1_score
                         best_model = self.model
+                        # save IDEC model checkpoints
+                        print('saving model to:', save_dir + '/IDEC_model_' + str(ite) + '.h5')
+                        self.model.save_weights(save_dir + '/IDEC_model_' + str(ite) + '.h5')
                     loss = np.round(loss, 5)
                     logdict = dict(iter=ite, precision=prec, recall=recall, f1_score=f1_score, L=loss[0], Lc=loss[1], Lr=loss[2])
                     logwriter.writerow(logdict)
@@ -184,10 +187,10 @@ class IDEC(object):
                 index += 1
 
             # save intermediate model
-            if ite % save_interval == 0:
-                # save IDEC model checkpoints
-                print('saving model to:', save_dir + '/IDEC_model_' + str(ite) + '.h5')
-                self.model.save_weights(save_dir + '/IDEC_model_' + str(ite) + '.h5')
+            # if ite % save_interval == 0:
+            #     # save IDEC model checkpoints
+            #     print('saving model to:', save_dir + '/IDEC_model_' + str(ite) + '.h5')
+            #     self.model.save_weights(save_dir + '/IDEC_model_' + str(ite) + '.h5')
 
             ite += 1
 
