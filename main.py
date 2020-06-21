@@ -9,6 +9,7 @@ from keras.initializers import VarianceScaling
 
 from metadec.dataset.genome import SimGenomeDataset
 from metadec.model.dec import DEC
+from metadec.model.idec import IDEC
 from metadec.utils.utils import load_genomics
 from metadec.debug.visualize import store_results
 from metadec.utils.metrics import genome_acc
@@ -18,11 +19,11 @@ sys.path.append('.')
 
 
 RESULT_DIR = 'results'
-GEN_DATA_DIR = 'data'
+GEN_DATA_DIR = 'data/simulated'
 
 # Versioning each runs
 ARCH = 'dec_genomics'
-DATE = '20200530'
+DATE = '20200621'
 
 # Training batchsize
 BATCH_SIZE = 1
@@ -150,7 +151,7 @@ for dataset in raw_datasets:
                                distribution='uniform')  # [-limit, limit], limit=sqrt(1./fan_in)
     pretrain_optimizer = SGD(lr=init_lr, momentum=0.9, decay=init_lr/PRETRAIN_EPOCHS)
 
-    dec = DEC(dims=[seed_kmer_features.shape[-1], 500, 1000, 10], n_clusters=n_clusters, init=init)
+    dec = IDEC(dims=[seed_kmer_features.shape[-1], 500, 1000, 10], n_clusters=n_clusters, init=init)
     
     # Start clustering
     if AE_WEIGHTS is None:
@@ -163,9 +164,8 @@ for dataset in raw_datasets:
     dec.model.summary()
     t0 = time.time()
     optim_lr = 0.01
-
-    dec.compile(optimizer=SGD(optim_lr), loss='kld')
-    y_pred = dec.fit(x=seed_kmer_features, y=labels, grps=groups, n_clusters=n_clusters, tol=TOL, maxiter=MAX_ITERS, batch_size=BATCH_SIZE,
+    dec.compile(optimizer=SGD(optim_lr))
+    y_pred = dec.fit(x=seed_kmer_features, y=labels, grps=groups, tol=TOL, maxiter=MAX_ITERS, batch_size=BATCH_SIZE,
                       update_interval=UPDATE_INTERVAL, save_dir=save_dir)
     
     if verbose:
