@@ -10,6 +10,25 @@ import re
 import gensim
 from gensim import corpora
 
+def load_amd_reads(filename):
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+
+    reads = []
+    is_read_part = False
+    read_frags = []
+    for line in lines:
+        line = line.strip()
+        if '>' in line:
+            if len(read_frags) > 0:
+                reads.append(''.join(read_frags))
+                read_frags = []
+        else:
+            read_frags.append(line)
+    
+    return reads
+
+
 def load_meta_reads(filename, type='fasta'):
     def format_read(read):
         # Return sequence and label
@@ -236,3 +255,9 @@ def metis_partition_groups_seeds(G, maximum_seed_size):
         SL += [nx.maximal_independent_set( pG )]
 
     return GL, SL
+
+if __name__ == "__main__":
+    amd_file = 'E:\\workspace\\python\\metagenomics-deep-binning\\data\\amd\\Amdfull\\fasta.13696_environmental_sequence.007'
+    print(len(load_amd_reads(amd_file)))
+
+    print([0] * 10)
