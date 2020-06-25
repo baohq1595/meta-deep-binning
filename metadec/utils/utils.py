@@ -1,3 +1,4 @@
+import json
 from metadec.dataset.genome import SimGenomeDataset
 
 def load_genomics(dataset_name,
@@ -38,3 +39,18 @@ def load_genomics(dataset_name,
         genomics_dataset.labels,\
         genomics_dataset.groups,\
         genomics_dataset.seeds
+
+
+def export_clustering_results(raw_reads, groups, n_clusters, y_pred, save_path):
+    exported_results = {k+1: [] for k in range(n_clusters)}
+
+    for i, group in enumerate(groups):
+        cluster_id = y_pred[i]
+        for r in group:
+            exported_results[cluster_id + 1].append(r)
+    
+    with open(save_path, 'w') as f:
+        json.dump(exported_results, f)
+
+    print(f'Saved result file at {save_path}')
+
