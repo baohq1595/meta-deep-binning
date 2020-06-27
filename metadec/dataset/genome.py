@@ -127,7 +127,7 @@ class AMDGenomeDataset():
         self.kmer_features = compute_kmer_dist(dictionary, corpus, self.groups, self.seeds, only_seed=only_seed)
         del dictionary
         del corpus
-        del self.reads
+        # del self.reads
 
         if is_serialize:
             print('Serializing data to...', graph_file)
