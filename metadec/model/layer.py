@@ -3,7 +3,7 @@ from keras.models import Model
 from keras.engine.topology import Layer, InputSpec
 from keras.layers import Dense, Input, Dropout
 
-def autoencoder(dims, act='relu', init='glorot_uniform'):
+def autoencoder(dims, act='relu', init='glorot_uniform', dropout=0.0):
     """
     Fully connected auto-encoder model, symmetric.
     Arguments:
@@ -21,6 +21,8 @@ def autoencoder(dims, act='relu', init='glorot_uniform'):
     # internal layers in encoder
     for i in range(n_stacks-1):
         h = Dense(dims[i + 1], activation=act, kernel_initializer=init, name='encoder_%d' % i)(h)
+        if dropout > 0.0:
+            h = Dropout(dropout)
 
     # hidden layer
     h = Dense(dims[-1], kernel_initializer=init, name='encoder_latent')(h)  # hidden layer, features are extracted from here
@@ -29,6 +31,8 @@ def autoencoder(dims, act='relu', init='glorot_uniform'):
     # internal layers in decoder
     for i in range(n_stacks-1, 0, -1):
         y = Dense(dims[i], activation=act, kernel_initializer=init, name='decoder_%d' % i)(y)
+        if dropout > 0.0:
+            y = Dropout(dropout)
 
     # output
     y = Dense(dims[0], kernel_initializer=init, name='decoder_reconstruction')(y)
