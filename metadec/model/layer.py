@@ -22,7 +22,7 @@ def autoencoder(dims, act='relu', init='glorot_uniform', dropout=0.0):
     for i in range(n_stacks-1):
         h = Dense(dims[i + 1], activation=act, kernel_initializer=init, name='encoder_%d' % i)(h)
         if dropout > 0.0:
-            h = Dropout(dropout)
+            h = Dropout(dropout)(h)
 
     # hidden layer
     h = Dense(dims[-1], kernel_initializer=init, name='encoder_latent')(h)  # hidden layer, features are extracted from here
@@ -32,7 +32,7 @@ def autoencoder(dims, act='relu', init='glorot_uniform', dropout=0.0):
     for i in range(n_stacks-1, 0, -1):
         y = Dense(dims[i], activation=act, kernel_initializer=init, name='decoder_%d' % i)(y)
         if dropout > 0.0:
-            y = Dropout(dropout)
+            y = Dropout(dropout)(y)
 
     # output
     y = Dense(dims[0], kernel_initializer=init, name='decoder_reconstruction')(y)
