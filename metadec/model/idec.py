@@ -37,7 +37,8 @@ class IDEC(object):
                  alpha=1.0,
                  gamma=0.1,
                  init='glorot_uniform',
-                 dropout=0.0):
+                 dropout=0.0,
+                 is_input=False):
 
         super(IDEC, self).__init__()
 
@@ -48,7 +49,7 @@ class IDEC(object):
         self.n_clusters = n_clusters
         self.alpha = alpha
         self.gamma = gamma
-        self.autoencoder, self.encoder = autoencoder(self.dims, init=init, dropout=dropout)
+        self.autoencoder, self.encoder = autoencoder(self.dims, init=init, dropout=dropout, is_input=is_input)
 
         # Prepare IDEC model
         latent_layer = self.autoencoder.get_layer(name='encoder_latent').output
