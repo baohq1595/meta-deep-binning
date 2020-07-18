@@ -18,7 +18,8 @@ class DEC(object):
                  dims,
                  n_clusters=10,
                  alpha=1.0,
-                 init='glorot_uniform'):
+                 init='glorot_uniform',
+                 dropout=0.0):
 
         super(DEC, self).__init__()
 
@@ -28,7 +29,7 @@ class DEC(object):
 
         self.n_clusters = n_clusters
         self.alpha = alpha
-        self.autoencoder, self.encoder = autoencoder(self.dims, init=init)
+        self.autoencoder, self.encoder = autoencoder(self.dims, init=init, dropout=dropout)
 
         # prepare DEC model
         clustering_layer = ClusteringLayer(self.n_clusters, name='clustering')(self.encoder.output)
