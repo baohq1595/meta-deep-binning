@@ -10,7 +10,8 @@ def load_genomics(dataset_name,
                     is_serialize=False,
                     is_deserialize=False,
                     is_normalize=False,
-                    only_seed=False):
+                    only_seed=False,
+                    is_tfidf=False):
     '''
     Loads fna file.
     Args:
@@ -33,7 +34,8 @@ def load_genomics(dataset_name,
         num_shared_reads=num_shared_reads,
         is_serialize=is_serialize,
         is_deserialize=is_deserialize,
-        is_normalize=is_normalize)
+        is_normalize=is_normalize,
+        is_tfidf=is_tfidf)
 
     return genomics_dataset.kmer_features,\
         genomics_dataset.labels,\

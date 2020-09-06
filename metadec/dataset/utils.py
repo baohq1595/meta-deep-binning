@@ -9,6 +9,7 @@ from Bio.Seq import Seq
 import re
 import gensim
 from gensim import corpora
+from gensim.models.tfidfmodel import TfidfModel
 
 def load_amd_reads(filename):
     with open(filename, 'r') as f:

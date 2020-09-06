@@ -12,7 +12,7 @@ class SimGenomeDataset():
     '''
     def __init__(self, fna_file, kmers: list, qmers, num_shared_reads,
                      maximum_seed_size=5000, only_seed=False, is_normalize=True,
-                     graph_file=None, is_serialize=False, is_deserialize=False):
+                     graph_file=None, is_serialize=False, is_deserialize=False, is_tfidf=False):
         '''
         Args:
             kmers: a list of kmer values. 
@@ -26,8 +26,8 @@ class SimGenomeDataset():
         # Creating document from reads...
         dictionary, documents = create_document(self.reads, kmers)
 
-        #( Creating corpus...
-        corpus = create_corpus(dictionary, documents)
+        # Creating corpus...
+        corpus = create_corpus(dictionary, documents, is_tfidf=is_tfidf)
 
         self.groups = []
         self.seeds = []
