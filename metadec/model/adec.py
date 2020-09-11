@@ -124,6 +124,7 @@ class ADEC():
         self.critic_dims = ae_dims if critic_dims is None else critic_dims
         self.discriminator_dims = ae_dims if discriminator_dims is None else discriminator_dims
         self.tol = tol
+        self.is_critic = kwargs.get('critic', True)
 
         if initializer == None:
             self.initializer = tf.keras.initializers.VarianceScaling(
@@ -299,7 +300,11 @@ class ADEC():
 
             # Total loss for autoencoder
             reg_ae_loss = self.lambda_coef * tf.reduce_mean(tf.square(pred_alpha))
-            total_ae_loss = ae_loss + reg_ae_loss
+
+            if self.is_critic:
+                total_ae_loss = ae_loss + reg_ae_loss
+            else:
+                total_ae_loss = ae_loss
 
             # Total loss for critic
             total_critic_loss = critic_loss_term_1 + critic_loss_term_2
