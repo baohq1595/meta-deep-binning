@@ -447,19 +447,20 @@ def pretrain(model: ADEC, seeds, groups, label,
         avg_loss = avg_losses(losses)
         wandb.log({'pretrain_losses': avg_loss})
             
-        if epoch % save_interval == 0 or (epoch == epochs - 1):
-            latent = model.encoder.predict(np.reshape(seeds, (seeds.shape[0], -1)))
-            latent_space_img = visualize_latent_space(latent, groups_label, 10, is_save=True, save_path=f'{save_path}/latent_{epoch}.png')
-            wandb.log({
-                        'pretrain_latent_space': [wandb.Image(latent_space_img, caption="Latent space")]
-                    })
+        # if epoch % save_interval == 0 or (epoch == epochs - 1):
+            # latent = model.encoder.predict(np.reshape(seeds, (seeds.shape[0], -1)))
+            # latent_space_img = visualize_latent_space(latent, groups_label, 10, is_save=True, save_path=f'{save_path}/latent_{epoch}.png')
+            # wandb.log({
+            #             'pretrain_latent_space': [wandb.Image(latent_space_img, caption="Latent space")]
+            #         })
             
-            if early_stopping:
-                if last_ae_loss - avg_loss['res_ae_loss'] < EARLY_STOPPING_THRESHOLD:
-                    p_count += 1
-                    if p_count == PATIENCE:
-                        print(f'No improvement after {PATIENCE} epochs. Stop!')
-                        break # Stop training
+        if early_stopping:
+            if last_ae_loss - avg_loss['res_ae_loss'] < EARLY_STOPPING_THRESHOLD:
+                p_count += 1
+                if p_count == PATIENCE:
+                    print(f'No improvement after {PATIENCE} epochs. Stop!')
+                    break # Stop training
+
         
 def pretrain_phase2(model: ADEC, seeds, groups, label,
         batch_size, epochs=1000, save_interval=200,
@@ -492,14 +493,14 @@ def pretrain_phase2(model: ADEC, seeds, groups, label,
         avg_loss = avg_losses(losses)
         wandb.log({'pretrain_phase2_losses': avg_loss})
             
-        if epoch % save_interval == 0 or (epoch == epochs - 1):
+        # if epoch % save_interval == 0 or (epoch == epochs - 1):
             # Save the visualization of latent space
-            latent = model.encoder.predict(seeds)
-            latent_space_img = visualize_latent_space(latent, groups_label, 10, is_save=True, save_path=f'{save_path}/latent_{epoch}.png')
+            # latent = model.encoder.predict(seeds)
+            # latent_space_img = visualize_latent_space(latent, groups_label, 10, is_save=True, save_path=f'{save_path}/latent_{epoch}.png')
 
-            wandb.log({
-                        'latent_space': [wandb.Image(latent_space_img, caption="Latent space")]
-                    })
+            # wandb.log({
+            #             'latent_space': [wandb.Image(latent_space_img, caption="Latent space")]
+            #         })
 
         if early_stopping:
             if last_ae_loss - avg_loss['res_ae_loss'] < EARLY_STOPPING_THRESHOLD:
@@ -507,6 +508,9 @@ def pretrain_phase2(model: ADEC, seeds, groups, label,
                 if p_count == PATIENCE:
                     print(f'No improvement after {PATIENCE} epochs. Stop!')
                     break # Stop training
+
+    latent = model.encoder.predict(seeds)
+    latent_space_img = visualize_latent_space(latent, groups_label, 10, is_save=True, save_path=f'{save_path}/latent_{epoch}.png')
 
 
 def cluster(model: ADEC, seeds, groups, label,
@@ -535,14 +539,17 @@ def cluster(model: ADEC, seeds, groups, label,
     
     stop = False
     last_cluster_pred = np.copy(non_wh_cluster_res)
+
     for epoch in n_epochs:
         offset = 0
         losses = []
+        random_idx = np.random.randint(0, seeds.shape[0], seeds.shape[0])
+        seeds_shuffle = seeds[random_idx,:]
 
         if epoch % save_interval == 0 or (epoch == epochs - 1):
             # Save the visualization of latent space
-            latent = model.encoder.predict(seeds)
-            latent_space_img = visualize_latent_space(latent, groups_label, model.n_clusters, is_save=True, save_path=f'{save_path}/latent_{epoch}.png')
+            # latent = model.encoder.predict(seeds)
+            # latent_space_img = visualize_latent_space(latent, groups_label, model.n_clusters, is_save=True, save_path=f'{save_path}/latent_{epoch}.png')
 
             # Log the clustering performance
             cluster_res = model.cluster.predict(seeds)
@@ -551,7 +558,7 @@ def cluster(model: ADEC, seeds, groups, label,
 
             try:
                 wandb.log({
-                            'latent_space': [wandb.Image(latent_space_img, caption="Latent space")],
+                            # 'latent_space': [wandb.Image(latent_space_img, caption="Latent space")],
                             'cluster_f1': f1
                         })
             except:
@@ -559,19 +566,23 @@ def cluster(model: ADEC, seeds, groups, label,
             
             delta_label = np.sum(y_pred != last_cluster_pred).astype(np.float32) / y_pred.shape[0]
             if epoch > 0 and delta_label < model.tol:
-                stop = False
-                break
+                stop = True
 
             last_cluster_pred = np.copy(cluster_res)
 
             # Update target distribution
             targ_dist = model.target_distribution(last_cluster_pred)
 
+        if stop:
+            # Reach stop condition, stop training
+            break
+
         is_alternate = False
+        # targ_dist_shuffle = targ_dist[random_idx,:]
         for batch_iter in range(total_batches):
             # Randomly choose each half batch
-            imgs = seeds[offset:offset + batch_size,:] if (batch_iter < (total_batches - 1)) else seeds[:batch_size,:]
-            y_cluster = targ_dist[offset:offset + batch_size,:] if (batch_iter < (total_batches - 1)) else targ_dist[:batch_size,:]
+            imgs = seeds[offset:offset + batch_size,:] if (batch_iter < (total_batches - 1)) else seeds[offset:,:]
+            y_cluster = targ_dist[offset:offset + batch_size,:] if (batch_iter < (total_batches - 1)) else targ_dist[offset:,:]
             offset += batch_size
 
             if batch_iter < int(2 * total_batches / 3) and total_batches >= 3:
@@ -587,10 +598,6 @@ def cluster(model: ADEC, seeds, groups, label,
             wandb.log({'clustering_losses': avg_loss})
         except:
             pass
-            
-        if stop:
-            # Reach stop condition, stop training
-            break
 
 if __name__ == "__main__":
     RESULT_DIR = 'results'
@@ -602,23 +609,23 @@ if __name__ == "__main__":
 
     # Versioning each runs
     ARCH = 'adec_genomics'
-    DATE = '20200904'
+    DATE = '20200913'
 
     # Training batchsize
     BATCH_SIZE = 256
     # Maximum iterations for clustering optimization step
-    MAX_ITERS = 5000
+    MAX_ITERS = 1500
     # Number of epochs for pretraining
-    PRETRAIN_EPOCHS = 500
+    PRETRAIN_EPOCHS = 2000
     PRETRAIN_PHASE2_EPOCHS = 500
     # Interval for updating the training status
     UPDATE_INTERVAL = 10
     # Tolerance threshold to stop clustering optimization step
-    TOL = 0.000001
+    TOL = 0.00001
     # Dir contains raw fasta data
     DATASET_DIR = GEN_DATA_DIR
     # Specifc dataset or all of them
-    DATASET_NAME = 'S1'
+    DATASET_NAME = ['S1']
 
     # Hyperparameters
     # Follows metaprob
@@ -647,20 +654,30 @@ if __name__ == "__main__":
         os.makedirs(SAVE_DIR)
 
     raw_dir = os.path.join(DATASET_DIR, 'raw')
-    processed_dir = os.path.join(DATASET_DIR, 'processed')
+    processed_dir = os.path.join(DATASET_DIR, 'processed_20200906')
     if not os.path.exists(processed_dir):
         os.makedirs(processed_dir)
     if DATASET_NAME == 'all':
         raw_datasets = glob.glob(raw_dir + '/*.fna')
     else:
-        raw_datasets = [os.path.join(raw_dir, DATASET_NAME + '.fna')]
+        if type(DATASET_NAME) == list:
+            raw_datasets = [os.path.join(raw_dir, ds_name + '.fna') for ds_name in DATASET_NAME]
+        else:    
+            raw_datasets = [os.path.join(raw_dir, DATASET_NAME + '.fna')]
 
     # Mapping of dataset and its corresponding number of clusters
     with open(META_INFO, 'r') as f:
         n_clusters_mapping = json.load(f)['simulated']
 
-    for dataset in tqdm.tqdm_notebook(raw_datasets):
-        # Get some parameters
+    kwargs = {
+        'enc_act': tf.nn.relu,
+        'dec_act': tf.nn.relu,
+        'dec_out_act': None,
+        # 'critic': False
+    }
+
+    for dataset in tqdm.tqdm(raw_datasets):
+    # Get some parameters
         dataset_name = os.path.basename(dataset).split('.fna')[0]
         save_dir = os.path.join(SAVE_DIR, dataset_name)
         
@@ -672,6 +689,14 @@ if __name__ == "__main__":
         n_clusters = n_clusters_mapping[dataset_name]
         
         # Read dataset
+        # tqdm.tqdm.write(f'Processing dataset {dataset_name}...')
+        # tqdm.tqdm.write(f'Prior number of clusters: {n_clusters}...')
+        # tqdm.tqdm.write(f'Prior number of shared reads: {num_shared_read}...')
+
+        print(f'Processing dataset {dataset_name}...')
+        print(f'Prior number of clusters: {n_clusters}...')
+        print(f'Prior number of shared reads: {num_shared_read}...')
+
         is_deserialize = False
         try:
             seed_kmer_features, labels, groups, seeds = load_genomics(
@@ -680,11 +705,12 @@ if __name__ == "__main__":
                 lmer=LMER,
                 maximum_seed_size=MAXIMUM_SEED_SIZE,
                 num_shared_reads=num_shared_read,
-                is_deserialize=is_deserialize,
-                is_serialize=~is_deserialize,
+                is_deserialize=True,
+                is_serialize=False,
                 is_normalize=True,
                 only_seed=ONLY_SEED,
-                graph_file=os.path.join(processed_dir, dataset_name + '.json')
+                graph_file=os.path.join(processed_dir, dataset_name + '.json'),
+                is_tfidf=False
             )
         except:
             seed_kmer_features, labels, groups, seeds = load_genomics(
@@ -694,21 +720,47 @@ if __name__ == "__main__":
                 maximum_seed_size=MAXIMUM_SEED_SIZE,
                 num_shared_reads=num_shared_read,
                 is_deserialize=False,
-                is_serialize=True,
+                is_serialize=False,
                 is_normalize=True,
                 only_seed=ONLY_SEED,
-                graph_file=os.path.join(processed_dir, dataset_name + '.json')
+                graph_file=os.path.join(processed_dir, dataset_name + '.json'),
+                is_tfidf=False
             )
 
-        exit(1)
+        base_arch = [136, 500, 1000, 10]
+        disc_arch = [136, 500, 1000, 1]
+        drop = 0.0
+        l_coef = 0.5
             
         adec = ADEC(n_clusters=n_clusters,
-                ae_dims=[136, 500, 1000, 10],
-                lambda_coef=0.5,
-                critic_dims=[136, 500, 1000, 10],
-                discriminator_dims=[136, 500, 1000, 1],
-                dropout=0.0)
+                ae_dims=base_arch,
+                lambda_coef=l_coef,
+                critic_dims=base_arch,
+                discriminator_dims=disc_arch,
+                dropout=drop,
+                tol=TOL,
+                **kwargs)
         
+        wandb.init(project="adec-gene-tf-exp", config={
+            'name': dataset_name,
+            'n_clusters': n_clusters,
+            'n_shared_reads': num_shared_read,
+            'lmer': LMER,
+            'kmers': KMERS,
+            'max_seeds_size': MAXIMUM_SEED_SIZE,
+            'only_seed': ONLY_SEED,
+            'dropout': drop,
+            'arch': base_arch
+        })
+
+        initial_lr = 0.001
+        lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+                                        initial_lr,
+                                        decay_steps=50*(seed_kmer_features.shape[0] // BATCH_SIZE + 1),
+                                        decay_rate=0.90,
+                                        staircase=True)
+        adec.ae_optim = Adam(lr_schedule, epsilon=1e-8)
+        adec.critic_optim = Adam(lr_schedule)
         
         pretrain(model=adec,
             seeds=np.array(seed_kmer_features),
@@ -726,8 +778,8 @@ if __name__ == "__main__":
             groups=groups,
             label=labels,
             batch_size=BATCH_SIZE,
-            epochs=PRETRAIN_EPOCHS,
-            save_interval=PRETRAIN_EPOCHS // 50,
+            epochs=PRETRAIN_PHASE2_EPOCHS,
+            save_interval=PRETRAIN_PHASE2_EPOCHS // 50,
             save_path='./pretrain/images')
 
         adec.save('./pretrain_weights')
@@ -737,8 +789,10 @@ if __name__ == "__main__":
             groups=groups,
             label=labels,
             batch_size=BATCH_SIZE,
-            epochs=PRETRAIN_EPOCHS,
-            save_interval=PRETRAIN_EPOCHS // 50,
+            epochs=MAX_ITERS,
+            save_interval=10,
             save_path='./pretrain/images')
 
         adec.save('./weights')
+
+    # del seed_kmer_features, labels, groups, seeds
