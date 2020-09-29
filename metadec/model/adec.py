@@ -399,7 +399,7 @@ class ADEC():
             g_loss = temp_d_fake_loss
 
             # Reconstruction loss
-            res_loss = tf.reduce_mean(tf.losses.mse(x, x_hat))
+            res_loss = tf.reduce_mean(tf.losses.mean_squared_error(tf.reshape(x, (x.shape[0], -1)), tf.reshape(x_hat, (x_hat.shape[0], -1))))
 
         # Computing gradient and backprop
         if not alternate:
