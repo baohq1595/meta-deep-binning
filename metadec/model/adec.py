@@ -46,6 +46,8 @@ from metadec.utils.utils import load_genomics
 from metadec.debug.visualize import store_results, get_group_label
 from metadec.utils.metrics import genome_acc
 
+import pickle
+
 
 class ClusteringLayer(Layer):
     """
@@ -143,8 +145,8 @@ class ADEC():
         return self.ae_optim, self.critic_optim
 
     def init_cluster_optims(self):
-        # self.cluster_optim = SGD(learning_rate=0.001, momentum=0.9)
-        self.cluster_optim = Adam(0.0001, epsilon=1e-8)
+        self.cluster_optim = SGD(learning_rate=0.001, momentum=0.9)
+        # self.cluster_optim = Adam(0.0001, epsilon=1e-8)
         return self.cluster_optim
 
 
@@ -391,8 +393,10 @@ class ADEC():
             kl_loss = tf.reduce_mean(tf.losses.kl_divergence(y, cluster_pred))
 
             # Generator-similar loss for encoder
-            total_enc_loss = kl_loss + d_fake_loss
-            g_loss = d_fake_loss
+            temp_fake_logits = self.discriminator(x_hat, training=True)
+            temp_d_fake_loss = tf.reduce_mean(tf.losses.binary_crossentropy(tf.zeros((x.shape[0], 1)), temp_fake_logits))
+            total_enc_loss = kl_loss + temp_d_fake_loss
+            g_loss = temp_d_fake_loss
 
             # Reconstruction loss
             res_loss = tf.reduce_mean(tf.losses.mse(x, x_hat))
@@ -415,6 +419,48 @@ class ADEC():
             'disc_loss': d_loss
         }
 
+
+def avg_losses(total_losses):
+    flatten_losses = defaultdict(list)
+    for loss in total_losses:
+        for kv in loss.items():
+            flatten_losses[kv[0]].append(kv[1])
+
+    avg_loss = {kv[0]: sum(kv[1]) / len(kv[1]) for kv in flatten_losses.items()}
+
+    return avg_loss
+
+def visualize_latent_space(x, labels, n_clusters, range_lim=(-80, 80), perplexity=40, is_save=False, save_path=None):
+    # tsne = TSNE(n_components=2, verbose=0, perplexity=perplexity, n_iter=1000, init='random')
+    tsne = TSNE(n_components=2)
+    tsne_results = tsne.fit_transform(x)
+    df_subset = pd.DataFrame()
+    
+    df_subset['tsne-2d-one'] = tsne_results[:,0]
+    df_subset['tsne-2d-two'] = tsne_results[:,1]
+    df_subset['Y'] =  labels
+    
+    n_comps = len(np.unique(labels).tolist())
+    
+    plt.figure(figsize=(16,10))
+    sns_plot = sns.scatterplot(
+        x='tsne-2d-one', y='tsne-2d-two',
+        hue='Y',
+        palette=sns.color_palette(n_colors=n_comps),
+        data=df_subset,
+        legend="full",
+        alpha=0.3
+    ).set(xlim=range_lim,ylim=range_lim)
+    
+    if is_save:
+        if not os.path.exists(os.path.dirname(save_path)):
+            os.makedirs(os.path.dirname(save_path))
+        save_path = save_path if save_path else ''
+        plt.savefig(save_path)
+        plt.close('all')
+        img = Image.open(save_path)
+        return img
+    return None
 
 def pretrain(model: ADEC, seeds, groups, label,
         batch_size, epochs=1000, save_interval=200,
@@ -599,6 +645,31 @@ def cluster(model: ADEC, seeds, groups, label,
         except:
             pass
 
+def pickling(seed_kmer_features, labels, groups, seeds, name, save_path):
+    save_dir = os.path.join(save_path, name)
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    data = {
+        'feature': seed_kmer_features,
+        'label': labels,
+        'group': groups,
+        'seed': seeds,
+        'name': name
+    }
+
+    with open(os.path.join(save_dir, 'data'), 'wb') as f:
+        pickle.dump(data, f)
+
+def load_pickle(file_path):
+    with open(file_path, 'rb') as f:
+        data = pickle.load(f)
+
+    return data['feature'],\
+        data['label'],\
+        data['group'],\
+        data['seed']
+
 if __name__ == "__main__":
     RESULT_DIR = 'results'
     GEN_DATA_DIR = 'data/simulated'
@@ -655,8 +726,11 @@ if __name__ == "__main__":
 
     raw_dir = os.path.join(DATASET_DIR, 'raw')
     processed_dir = os.path.join(DATASET_DIR, 'processed_20200906')
+    pickle_dir = os.path.join(DATASET_DIR, 'pickle')
     if not os.path.exists(processed_dir):
         os.makedirs(processed_dir)
+    if not os.path.exists(pickle_dir):
+        os.makedirs(pickle_dir)
     if DATASET_NAME == 'all':
         raw_datasets = glob.glob(raw_dir + '/*.fna')
     else:
@@ -676,6 +750,8 @@ if __name__ == "__main__":
         # 'critic': False
     }
 
+    is_pickle = False
+    from_pickle = True
     for dataset in tqdm.tqdm(raw_datasets):
     # Get some parameters
         dataset_name = os.path.basename(dataset).split('.fna')[0]
@@ -699,19 +775,22 @@ if __name__ == "__main__":
 
         is_deserialize = False
         try:
-            seed_kmer_features, labels, groups, seeds = load_genomics(
-                dataset,
-                kmers=KMERS,
-                lmer=LMER,
-                maximum_seed_size=MAXIMUM_SEED_SIZE,
-                num_shared_reads=num_shared_read,
-                is_deserialize=True,
-                is_serialize=False,
-                is_normalize=True,
-                only_seed=ONLY_SEED,
-                graph_file=os.path.join(processed_dir, dataset_name + '.json'),
-                is_tfidf=False
-            )
+            if from_pickle:
+                seed_kmer_features, labels, groups, seeds = load_pickle(os.path.join(pickle_dir, dataset_name, 'data'))
+            else:
+                seed_kmer_features, labels, groups, seeds = load_genomics(
+                    dataset,
+                    kmers=KMERS,
+                    lmer=LMER,
+                    maximum_seed_size=MAXIMUM_SEED_SIZE,
+                    num_shared_reads=num_shared_read,
+                    is_deserialize=True,
+                    is_serialize=False,
+                    is_normalize=True,
+                    only_seed=ONLY_SEED,
+                    graph_file=os.path.join(processed_dir, dataset_name + '.json'),
+                    is_tfidf=False
+                )
         except:
             seed_kmer_features, labels, groups, seeds = load_genomics(
                 dataset,
@@ -726,6 +805,11 @@ if __name__ == "__main__":
                 graph_file=os.path.join(processed_dir, dataset_name + '.json'),
                 is_tfidf=False
             )
+
+        if is_pickle:
+            pickling(seed_kmer_features, labels, groups, seeds, dataset_name, pickle_dir)
+
+        exit(1)
 
         base_arch = [136, 500, 1000, 10]
         disc_arch = [136, 500, 1000, 1]
