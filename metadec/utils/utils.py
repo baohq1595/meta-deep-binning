@@ -1,5 +1,5 @@
 import json
-from metadec.dataset.genome import SimGenomeDataset
+from metadec.dataset.genome import SimGenomeDataset, AMDGenomeDataset
 
 def load_genomics(dataset_name,
                     kmers, 
@@ -11,7 +11,8 @@ def load_genomics(dataset_name,
                     is_deserialize=False,
                     is_normalize=False,
                     only_seed=False,
-                    is_tfidf=False):
+                    is_tfidf=False,
+                    is_amd=False):
     '''
     Loads fna file.
     Args:
@@ -26,16 +27,28 @@ def load_genomics(dataset_name,
         is_normalize: whether to normalize kmer-features.
         only_seed: True to compute kmer features using seeds only.
     '''
-    genomics_dataset = SimGenomeDataset(
-        dataset_name, kmers, lmer,
-        graph_file=graph_file,
-        only_seed=only_seed,
-        maximum_seed_size=maximum_seed_size,
-        num_shared_reads=num_shared_reads,
-        is_serialize=is_serialize,
-        is_deserialize=is_deserialize,
-        is_normalize=is_normalize,
-        is_tfidf=is_tfidf)
+    if not is_amd:
+        genomics_dataset = SimGenomeDataset(
+            dataset_name, kmers, lmer,
+            graph_file=graph_file,
+            only_seed=only_seed,
+            maximum_seed_size=maximum_seed_size,
+            num_shared_reads=num_shared_reads,
+            is_serialize=is_serialize,
+            is_deserialize=is_deserialize,
+            is_normalize=is_normalize,
+            is_tfidf=is_tfidf)
+    else:
+        genomics_dataset = AMDGenomeDataset(
+            dataset_name, kmers, lmer,
+            graph_file=graph_file,
+            only_seed=only_seed,
+            maximum_seed_size=maximum_seed_size,
+            num_shared_reads=num_shared_reads,
+            is_serialize=is_serialize,
+            is_deserialize=is_deserialize,
+            is_normalize=is_normalize,
+            is_tfidf=is_tfidf)
 
     return genomics_dataset.kmer_features,\
         genomics_dataset.labels,\

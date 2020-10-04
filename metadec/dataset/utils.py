@@ -16,18 +16,27 @@ def load_amd_reads(filename):
         lines = f.readlines()
 
     reads = []
+    raw_labels = []
+    labels = []
     is_read_part = False
     read_frags = []
-    for line in lines:
+    for k, line in enumerate(lines):
         line = line.strip()
-        if '>' in line:
+        if '>' in line or k == len(lines) - 1:
             if len(read_frags) > 0:
                 reads.append(''.join(read_frags))
                 read_frags = []
+            if '>' in line:
+                raw_label = line.split('|')[-1]
+                raw_labels.append(raw_label)
         else:
             read_frags.append(line)
+
+    unique_label = list(set(raw_labels))
+    label2idx = {label: i for i, label in enumerate(unique_label)}
+    labels = [label2idx[label] for label in raw_labels]
     
-    return reads
+    return reads, labels
 
 
 def load_meta_reads(filename, type='fasta'):
@@ -258,7 +267,11 @@ def metis_partition_groups_seeds(G, maximum_seed_size):
     return GL, SL
 
 if __name__ == "__main__":
-    amd_file = 'E:\\workspace\\python\\metagenomics-deep-binning\\data\\amd\\Amdfull\\fasta.13696_environmental_sequence.007'
-    print(len(load_amd_reads(amd_file)))
+    amd_file = 'E:\\workspace\\python\\metagenomics-deep-binning\\data\\amd\\Amdfull\\parsed\\blasted_amd.fna'
+    reads, labels = load_amd_reads(amd_file)
 
     print([0] * 10)
+
+    sample_file = 'E:\\workspace\\python\\metagenomics-deep-binning\\data\\simulated\\raw\\L1.fna'
+    load_meta_reads(sample_file)
+    a = 1

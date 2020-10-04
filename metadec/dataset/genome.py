@@ -1,4 +1,5 @@
 import json
+import os, pickle
 from sklearn.preprocessing import OneHotEncoder, normalize, StandardScaler
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 
@@ -41,6 +42,14 @@ class SimGenomeDataset():
             # Partitioning graph...
             self.groups, self.seeds = metis_partition_groups_seeds(graph, maximum_seed_size)
 
+        with open(os.path.join('temp', 'corpus'), 'rb') as f:
+            corpus = pickle.load(f)
+
+        with open(os.path.join('temp', 'dictionary'), 'rb') as f:
+            dictionary = pickle.load(f)
+
+        with open(os.path.join('temp', 'documents'), 'rb') as f:
+            documents = pickle.load(f)
                 
         # Computing features...
         self.kmer_features = compute_kmer_dist(dictionary, corpus, self.groups, self.seeds, only_seed=only_seed)
@@ -92,7 +101,7 @@ class AMDGenomeDataset():
     '''
     def __init__(self, fna_file, kmers: list, qmers, num_shared_reads,
                      maximum_seed_size=5000, only_seed=False, is_normalize=True,
-                     graph_file=None, is_serialize=False, is_deserialize=False):
+                     graph_file=None, is_serialize=False, is_deserialize=False, is_tfidf=False):
         '''
         Args:
             kmers: a list of kmer values. 
@@ -101,14 +110,27 @@ class AMDGenomeDataset():
             graph_file: calculated groups and seeds (json).
         '''
         # Read fasta dataset
-        self.reads = load_amd_reads(fna_file)
-        self.labels = [0] * len(self.reads)
+        self.reads, self.labels = load_amd_reads(fna_file)
 
         # Creating document from reads...
         dictionary, documents = create_document(self.reads, kmers)
 
         #( Creating corpus...
-        corpus = create_corpus(dictionary, documents)
+        corpus = create_corpus(dictionary, documents, is_tfidf=is_tfidf)
+
+        if not os.path.exists('temp'):
+            os.makedirs('temp')
+
+        with open(os.path.join('temp', 'corpus'), 'wb') as f:
+            pickle.dump(corpus, f)
+
+        with open(os.path.join('temp', 'documents'), 'wb') as f:
+            pickle.dump(documents, f)
+
+        with open(os.path.join('temp', 'dictionary'), 'wb') as f:
+            pickle.dump(dictionary, f)
+
+        del corpus, dictionary, documents
 
         self.groups = []
         self.seeds = []
@@ -121,9 +143,16 @@ class AMDGenomeDataset():
             graph = build_overlap_graph(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads)
             # Partitioning graph...
             self.groups, self.seeds = metis_partition_groups_seeds(graph, maximum_seed_size)
-
                 
         # Computing features...
+        with open(os.path.join('temp', 'corpus'), 'rb') as f:
+            corpus = pickle.load(f)
+
+        with open(os.path.join('temp', 'dictionary'), 'rb') as f:
+            dictionary = pickle.load(f)
+
+        with open(os.path.join('temp', 'documents'), 'rb') as f:
+            documents = pickle.load(f)
         self.kmer_features = compute_kmer_dist(dictionary, corpus, self.groups, self.seeds, only_seed=only_seed)
         del dictionary
         del corpus
