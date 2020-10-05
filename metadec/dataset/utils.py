@@ -11,6 +11,10 @@ import gensim
 from gensim import corpora
 from gensim.models.tfidfmodel import TfidfModel
 
+import pickle
+import os, sys
+import math
+
 def load_amd_reads(filename):
     with open(filename, 'r') as f:
         lines = f.readlines()
@@ -182,6 +186,7 @@ def create_corpus(dictionary: corpora.Dictionary, documents,
     return corpus
 
 def compute_kmer_dist(dictionary, corpus, groups, seeds, only_seed=True):
+    print('Start computing feature')
     corpus_m = gensim.matutils.corpus2dense(corpus, len(dictionary.keys())).T
     res = []
     if only_seed:
@@ -209,6 +214,7 @@ def build_overlap_graph(reads, labels, qmer_length, num_shared_reads):
             else:
                 lmers_dict[lmer] = [idx]
 
+    print('Finish hashtable')
     # Building edges
     E=dict()
     for lmer in lmers_dict:
@@ -222,7 +228,123 @@ def build_overlap_graph(reads, labels, qmer_length, num_shared_reads):
             else:
                 E[e_curr] = 1
     E_Filtered = {kv[0]: kv[1] for kv in E.items() if kv[1] >= num_shared_reads}
+    print('Start initializing graph')
+    # Initialize graph
+    G = nx.Graph()
+
+    print('Add nodes')
     
+    # Add nodes to graph
+    color_map = {0: 'red', 1: 'green', 2: 'blue', 3: 'yellow', 4: 'darkcyan', 5: 'violet'}
+    for i in range(0, len(labels)):
+        G.add_node(i, label=labels[i])
+
+    print('Add edges')
+
+    # Add edges to graph
+    for kv in E_Filtered.items():
+        G.add_edge(kv[0][0], kv[0][1], weight=kv[1])
+
+    # Finishing....
+    print('Finishing build graph')
+    
+    return G
+
+def split_list(ori_list, chunks=2):
+    batch_size = len(ori_list) // chunks
+    splitted_list = []
+    offset = 0
+    for i in range(chunks):
+        if i < chunks - 1:
+            splitted_list.append(ori_list[offset:offset + batch_size])
+            offset += batch_size
+        else:
+            splitted_list.append(ori_list[offset:])
+
+    return splitted_list
+
+def split_dict(ori_dict, chunks=2):
+    batch_size = len(ori_dict) // chunks
+    splitted_dict = []
+    offset = 0
+    for i in range(chunks):
+        if i < chunks - 1:
+            splitted_dict.append({k:ori_dict[k] for k in list(ori_dict.keys())[offset:offset + batch_size]})
+            offset += batch_size
+        else:
+            splitted_dict.append({k:ori_dict[k] for k in list(ori_dict.keys())[offset:]})
+
+    return splitted_dict
+
+def build_overlap_graph_v2(reads, labels, qmer_length, num_shared_reads):
+    '''
+    Build overlapping graph
+    '''
+    if not os.path.exists('temp'):
+        os.makedirs('temp')
+
+    for i, r in enumerate(reads):
+        reads[i].replace('N', '')
+
+    # Create hash table with q-mers are keys
+    lmers_dict=dict()
+    for idx, r in enumerate(reads):
+        for j in range(0,len(r)-qmer_length+1):
+            lmer = r[j:j+qmer_length]
+            if lmer in lmers_dict:
+                lmers_dict[lmer] += [idx]
+            else:
+                lmers_dict[lmer] = [idx]
+
+    # Building edges
+    # E=dict()
+    chunks = 10000
+    splitted_dicts = split_dict(lmers_dict, chunks)
+    print('Building...')
+    print('Sub dict size: ', len(splitted_dicts))
+    for i, sub_lmers_dict in enumerate(splitted_dicts):
+        E=dict()
+        count = 0
+        for lmer in sub_lmers_dict:
+            for e in it.combinations(sub_lmers_dict[lmer],2):
+                if e[0]!=e[1]:
+                    e_curr=(e[0],e[1])
+                else:
+                    continue
+                if e_curr in E:
+                    E[e_curr] += 1 # Number of connected lines between read a and b
+                else:
+                    E[e_curr] = 1
+                count += 0
+            
+
+        print("Total: ", count)  
+        with open(os.path.join('temp', f'chunk{i}'), 'wb') as f:
+            pickle.dump(E, f)
+        del E
+        splitted_dicts[i] = None
+
+        print(f'chunk {i}')
+
+    print('Filtering...')
+
+    E = dict()
+    for i in range(chunks):
+        with open(os.path.join('temp', f'chunk{i}'), 'rb') as f:
+            sub_E = pickle.load(f)
+        
+        print(f'chunk {i}')
+        for kv in sub_E.items():
+            if kv[0] in E:
+                E[kv[0]] += sub_E[kv[0]]
+            else:
+                E[kv[0]] = 1
+    
+    print('Finish building edges.')
+        
+    E_Filtered = {kv[0]: kv[1] for kv in E.items() if kv[1] >= num_shared_reads}
+
+    print('Start initializing graph')
     # Initialize graph
     G = nx.Graph()
     
@@ -267,11 +389,16 @@ def metis_partition_groups_seeds(G, maximum_seed_size):
     return GL, SL
 
 if __name__ == "__main__":
-    amd_file = 'E:\\workspace\\python\\metagenomics-deep-binning\\data\\amd\\Amdfull\\parsed\\blasted_amd.fna'
-    reads, labels = load_amd_reads(amd_file)
+    # amd_file = 'E:\\workspace\\python\\metagenomics-deep-binning\\data\\amd\\Amdfull\\parsed\\blasted_amd.fna'
+    # reads, labels = load_amd_reads(amd_file)
 
-    print([0] * 10)
+    # print([0] * 10)
 
-    sample_file = 'E:\\workspace\\python\\metagenomics-deep-binning\\data\\simulated\\raw\\L1.fna'
-    load_meta_reads(sample_file)
-    a = 1
+    # sample_file = 'E:\\workspace\\python\\metagenomics-deep-binning\\data\\simulated\\raw\\L1.fna'
+    # load_meta_reads(sample_file)
+    # a = 1
+
+    sample_dict = {k:k for k in range(100)}
+    splitted_dicts = split_dict(sample_dict, 10)
+
+    print(splitted_dicts)
