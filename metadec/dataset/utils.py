@@ -298,10 +298,9 @@ def build_overlap_graph_v2(reads, labels, qmer_length, num_shared_reads):
 
     # Building edges
     # E=dict()
-    chunks = 10000
+    chunks = len(lmers_dict)
     splitted_dicts = split_dict(lmers_dict, chunks)
     print('Building...')
-    print('Sub dict size: ', len(splitted_dicts))
     for i, sub_lmers_dict in enumerate(splitted_dicts):
         E=dict()
         count = 0
@@ -315,16 +314,12 @@ def build_overlap_graph_v2(reads, labels, qmer_length, num_shared_reads):
                     E[e_curr] += 1 # Number of connected lines between read a and b
                 else:
                     E[e_curr] = 1
-                count += 0
+                count += 1
             
-
-        print("Total: ", count)  
         with open(os.path.join('temp', f'chunk{i}'), 'wb') as f:
             pickle.dump(E, f)
         del E
         splitted_dicts[i] = None
-
-        print(f'chunk {i}')
 
     print('Filtering...')
 
@@ -332,8 +327,7 @@ def build_overlap_graph_v2(reads, labels, qmer_length, num_shared_reads):
     for i in range(chunks):
         with open(os.path.join('temp', f'chunk{i}'), 'rb') as f:
             sub_E = pickle.load(f)
-        
-        print(f'chunk {i}')
+
         for kv in sub_E.items():
             if kv[0] in E:
                 E[kv[0]] += sub_E[kv[0]]
