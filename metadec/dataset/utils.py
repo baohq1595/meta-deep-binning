@@ -15,6 +15,78 @@ import pickle
 import os, sys
 import math
 
+alphabet = 'abcdefghijklmnopqrvuxyzw'
+special_chars = '.,;:-='
+
+bases_4 = ['A', 'C', 'G', 'T']
+kmers_map = {
+    4: [''.join(p) for p in it.product(bases_4, repeat=4)],
+    3: [''.join(p) for p in it.product(bases_4, repeat=3)],
+    2: [''.join(p) for p in it.product(bases_4, repeat=2)],
+    1: [''.join(p) for p in it.product(bases_4, repeat=1)]
+}
+# print(kmers_map)
+merged_kmer_list = [x for kv in kmers_map.items() for x in kv[1]]
+print(len(merged_kmer_list))
+
+def encode_hash(hash_str):
+    chars = []
+    str_part_size = int(math.floor(len(hash_str) / 4))
+    remains = len(hash_str) - str_part_size * 4
+    offset = 0
+    for i in range(str_part_size):
+        x_mer = hash_str[offset: offset + 4]
+        idx = kmers_map[4].index(x_mer)
+        chars.append(str(idx))
+
+def hash2numeric(hash_str):
+    '''
+    A: 00
+    T: 01
+    G: 10
+    C: 11
+    '''
+    val = 1
+    for nucl in hash_str:
+        val = val << 2
+        if nucl == 'A':
+            val |= 0
+        elif nucl == 'T':
+            val |= 1
+        elif nucl == 'G':
+            val |= 2
+        elif nucl == 'C':
+            val |= 3
+        else:
+            raise Exception('Bad nucliotide character!!!')
+
+    return val
+
+def numeric2hash(numeric_val, expected_length=30):
+    chars = []
+    while(numeric_val > 1):
+        mod = numeric_val % 4
+        numeric_val = numeric_val // 4
+        if mod == 3:
+            char = 'C'
+        elif mod == 2:
+            char = 'G'
+        elif mod == 1:
+            char = 'T'
+        elif mod == 0:
+            char = 'A'
+        else:
+            raise Exception('Bad numeric value!!!')
+        chars.append(char)
+
+    if len(chars) != expected_length:
+        raise Exception('Decoded length does not match with expected length!!!')
+
+    return ''.join(list(reversed(chars)))
+
+
+
+
 def load_amd_reads(filename):
     with open(filename, 'r') as f:
         lines = f.readlines()
@@ -280,78 +352,53 @@ def build_overlap_graph_v2(reads, labels, qmer_length, num_shared_reads):
     '''
     Build overlapping graph
     '''
-    if not os.path.exists('temp'):
-        os.makedirs('temp')
-
     for i, r in enumerate(reads):
         reads[i].replace('N', '')
-
     # Create hash table with q-mers are keys
     lmers_dict=dict()
     for idx, r in enumerate(reads):
         for j in range(0,len(r)-qmer_length+1):
             lmer = r[j:j+qmer_length]
-            if lmer in lmers_dict:
-                lmers_dict[lmer] += [idx]
+            encoded_lmer = hash2numeric(lmer)
+            if encoded_lmer in lmers_dict:
+                lmers_dict[encoded_lmer] += [idx]
             else:
-                lmers_dict[lmer] = [idx]
+                lmers_dict[encoded_lmer] = [idx]
 
+    print('Finish hashtable')
+    reads = None
     # Building edges
-    # E=dict()
-    chunks = len(lmers_dict)
-    splitted_dicts = split_dict(lmers_dict, chunks)
-    print('Building...')
-    for i, sub_lmers_dict in enumerate(splitted_dicts):
-        E=dict()
-        count = 0
-        for lmer in sub_lmers_dict:
-            for e in it.combinations(sub_lmers_dict[lmer],2):
-                if e[0]!=e[1]:
-                    e_curr=(e[0],e[1])
-                else:
-                    continue
-                if e_curr in E:
-                    E[e_curr] += 1 # Number of connected lines between read a and b
-                else:
-                    E[e_curr] = 1
-                count += 1
-            
-        with open(os.path.join('temp', f'chunk{i}'), 'wb') as f:
-            pickle.dump(E, f)
-        del E
-        splitted_dicts[i] = None
-
-    print('Filtering...')
-
-    E = dict()
-    for i in range(chunks):
-        with open(os.path.join('temp', f'chunk{i}'), 'rb') as f:
-            sub_E = pickle.load(f)
-
-        for kv in sub_E.items():
-            if kv[0] in E:
-                E[kv[0]] += sub_E[kv[0]]
+    E=dict()
+    for encoded_lmer in lmers_dict:
+        for e in it.combinations(lmers_dict[encoded_lmer],2):
+            if e[0]!=e[1]:
+                e_curr=(e[0],e[1])
             else:
-                E[kv[0]] = 1
-    
-    print('Finish building edges.')
-        
+                continue
+            if e_curr in E:
+                E[e_curr] += 1 # Number of connected lines between read a and b
+            else:
+                E[e_curr] = 1
     E_Filtered = {kv[0]: kv[1] for kv in E.items() if kv[1] >= num_shared_reads}
-
     print('Start initializing graph')
     # Initialize graph
     G = nx.Graph()
+
+    print('Add nodes')
     
     # Add nodes to graph
     color_map = {0: 'red', 1: 'green', 2: 'blue', 3: 'yellow', 4: 'darkcyan', 5: 'violet'}
     for i in range(0, len(labels)):
         G.add_node(i, label=labels[i])
 
+    print('Add edges')
+
     # Add edges to graph
     for kv in E_Filtered.items():
         G.add_edge(kv[0][0], kv[0][1], weight=kv[1])
 
     # Finishing....
+    print('Finishing build graph')
     
     return G
 
@@ -392,7 +439,11 @@ if __name__ == "__main__":
     # load_meta_reads(sample_file)
     # a = 1
 
-    sample_dict = {k:k for k in range(100)}
-    splitted_dicts = split_dict(sample_dict, 10)
+    # sample_dict = {k:k for k in range(100)}
+    # splitted_dicts = split_dict(sample_dict, 10)
 
-    print(splitted_dicts)
+    # print(splitted_dicts)
+    val = hash2numeric('ACTACGATGATCTAGCTGATCTCACGGTTT')
+    print(numeric2hash(val))
+
+    
