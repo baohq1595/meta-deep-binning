@@ -569,7 +569,17 @@ def build_overlap_graph_fast(reads, labels, qmer_length, num_shared_reads, n_pro
 
     print('Finish hashtable')
     # Building edges
-    E = build_edges(lmers_dict, n_procs)
+    E=dict()
+    for encoded_lmer in lmers_dict:
+        for e in it.combinations(lmers_dict[encoded_lmer],2):
+            if e[0]!=e[1]:
+                e_curr=(e[0],e[1])
+            else:
+                continue
+            if e_curr in E:
+                E[e_curr] += 1 # Number of connected lines between read a and b
+            else:
+                E[e_curr] = 1
 
     print('Finish edges')
 
