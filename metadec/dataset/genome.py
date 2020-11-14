@@ -4,7 +4,7 @@ from sklearn.preprocessing import OneHotEncoder, normalize, StandardScaler
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 
 from metadec.dataset.utils import *
-
+import time
 class SimGenomeDataset():
     '''
     Metagenomics dataset for reading simulated data in fasta format (.fna)
@@ -13,7 +13,7 @@ class SimGenomeDataset():
     '''
     def __init__(self, fna_file, kmers: list, qmers, num_shared_reads,
                      maximum_seed_size=5000, only_seed=False, is_normalize=True,
-                     graph_file=None, is_serialize=False, is_deserialize=False, is_tfidf=False):
+                     graph_file=None, is_serialize=False, is_deserialize=False, is_tfidf=False, n_procs=1):
         '''
         Args:
             kmers: a list of kmer values. 
@@ -38,7 +38,9 @@ class SimGenomeDataset():
             self.groups, self.seeds = self.deserialize_data(graph_file, self.reads)
         else:
             # Build overlapping (reads) graph
-            graph = build_overlap_graph_v2(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads)
+            start = time.time()
+            graph = build_overlap_graph_fast(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads, n_procs=n_procs)
+            print("Time for build graph: ", time.time()-start)
             # Partitioning graph...
             self.groups, self.seeds = metis_partition_groups_seeds(graph, maximum_seed_size)
 
@@ -101,7 +103,7 @@ class AMDGenomeDataset():
     '''
     def __init__(self, fna_file, kmers: list, qmers, num_shared_reads,
                      maximum_seed_size=5000, only_seed=False, is_normalize=True,
-                     graph_file=None, is_serialize=False, is_deserialize=False, is_tfidf=False):
+                     graph_file=None, is_serialize=False, is_deserialize=False, is_tfidf=False, n_procs=1):
         '''
         Args:
             kmers: a list of kmer values. 
@@ -110,13 +112,15 @@ class AMDGenomeDataset():
             graph_file: calculated groups and seeds (json).
         '''
         # Read fasta dataset
+        print('Read dataset...')
         self.reads, self.labels = load_amd_reads(fna_file)
 
         # Creating document from reads...
         if not os.path.exists(os.path.join('temp', 'corpus')):
             dictionary, documents = create_document(self.reads, kmers)
 
-            #( Creating corpus...
+            # Creating corpus...
+            print('Creating corpus...')
             corpus = create_corpus(dictionary, documents, is_tfidf=is_tfidf)
 
             if not os.path.exists('temp'):
@@ -141,7 +145,7 @@ class AMDGenomeDataset():
             self.groups, self.seeds = self.deserialize_data(graph_file, self.reads)
         else:
             # Build overlapping (reads) graph
-            graph = build_overlap_graph_v2(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads)
+            graph = build_overlap_graph_fast(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads, n_procs=n_procs)
             # Partitioning graph...
             self.groups, self.seeds = metis_partition_groups_seeds(graph, maximum_seed_size)
                 

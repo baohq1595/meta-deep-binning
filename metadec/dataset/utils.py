@@ -14,6 +14,9 @@ from gensim.models.tfidfmodel import TfidfModel
 import pickle
 import os, sys
 import math
+import multiprocessing
+import json
+import pickle
 
 alphabet = 'abcdefghijklmnopqrvuxyzw'
 special_chars = '.,;:-='
@@ -27,7 +30,6 @@ kmers_map = {
 }
 # print(kmers_map)
 merged_kmer_list = [x for kv in kmers_map.items() for x in kv[1]]
-print(len(merged_kmer_list))
 
 def encode_hash(hash_str):
     chars = []
@@ -83,8 +85,6 @@ def numeric2hash(numeric_val, expected_length=30):
         raise Exception('Decoded length does not match with expected length!!!')
 
     return ''.join(list(reversed(chars)))
-
-
 
 
 def load_amd_reads(filename):
@@ -348,12 +348,86 @@ def split_dict(ori_dict, chunks=2):
 
     return splitted_dict
 
+def build_hashtable_worker(sub_reads, qmer_length, temp_dir, id):
+    # Create hash table with q-mers are keys
+    sub_lmers_dict = dict()
+    print('Sub Reads: ', len(sub_reads))
+    for idx, r in enumerate(sub_reads):
+        for j in range(0,len(r)-qmer_length+1):
+            lmer = r[j:j+qmer_length]
+            encoded_lmer = hash2numeric(lmer)
+            # encoded_lmer = lmer
+            if encoded_lmer in sub_lmers_dict:
+                sub_lmers_dict[encoded_lmer] += [idx]
+            else:
+                sub_lmers_dict[encoded_lmer] = [idx]
+
+    # with open(os.path.join(temp_dir, f'hash_dict_{id}'), 'w') as f:
+    #     json.dump(sub_lmers_dict, f)
+    with open(os.path.join(temp_dir, f'hash_dict_{id}'), 'wb') as f:
+        pickle.dump(sub_lmers_dict, f)
+    print('Worker finish')
+
+def str2tuple(s):
+    tup = []
+    for it in re.finditer(r'[0-9]+', s):
+        tup.append(int(it.group(0)))
+    return tuple(tup)
+
+def build_edges_worker(lmers_dict, temp_dir, id):
+    e_dict = dict()
+    print(f'Start {id}')
+    for encoded_lmer in lmers_dict:
+        for e in it.combinations(lmers_dict[encoded_lmer], 2):
+            if e[0]!=e[1]:
+                # e_curr=str((e[0],e[1]))
+                e_curr=(e[0],e[1])
+            else:
+                continue
+            if e_curr in e_dict:
+                e_dict[e_curr] += 1 # Number of connected lines between read a and b
+            else:
+                e_dict[e_curr] = 1
+    
+    print(f'End {id}')
+    # with open(os.path.join(temp_dir, f'edge_dict_{id}'), 'w') as f:
+    #     json.dump(e_dict, f)
+
+    with open(os.path.join(temp_dir, f'edge_dict_{id}'), 'wb') as f:
+        pickle.dump(e_dict, f)
+
+    print('Worker finish')
+
+
+def combine_e_dicts(e_dicts):
+    e_dict = e_dicts[0]
+    for d in e_dicts[1:]:
+        for conn, count in d.items():
+            if conn in e_dict:
+                e_dict[conn] += count
+            else:
+                e_dict[conn] = count
+
+    return e_dict
+
+def combine_lmers_dicts(lmers_dicts):
+    lmers_dict = lmers_dicts[0]
+    for d in lmers_dicts[1:]:
+        for lmer, idxs in d.items():
+            if lmer in lmers_dict:
+                lmers_dict[lmer].extend(idxs)
+            else:
+                lmers_dict[lmer] = idxs
+
+    return lmers_dict
+
+
 def build_overlap_graph_v2(reads, labels, qmer_length, num_shared_reads):
     '''
     Build overlapping graph
     '''
     for i, r in enumerate(reads):
-        reads[i].replace('N', '')
+        reads[i] = reads[i].replace('N', '')
     # Create hash table with q-mers are keys
     lmers_dict=dict()
     for idx, r in enumerate(reads):
@@ -366,7 +440,6 @@ def build_overlap_graph_v2(reads, labels, qmer_length, num_shared_reads):
                 lmers_dict[encoded_lmer] = [idx]
 
     print('Finish hashtable')
-    reads = None
     # Building edges
     E=dict()
     for encoded_lmer in lmers_dict:
@@ -379,6 +452,127 @@ def build_overlap_graph_v2(reads, labels, qmer_length, num_shared_reads):
                 E[e_curr] += 1 # Number of connected lines between read a and b
             else:
                 E[e_curr] = 1
+    E_Filtered = {kv[0]: kv[1] for kv in E.items() if kv[1] >= num_shared_reads}
+    print('Start initializing graph')
+    # Initialize graph
+    G = nx.Graph()
+
+    print('Add nodes')
+    
+    # Add nodes to graph
+    color_map = {0: 'red', 1: 'green', 2: 'blue', 3: 'yellow', 4: 'darkcyan', 5: 'violet'}
+    for i in range(0, len(labels)):
+        G.add_node(i, label=labels[i])
+
+    print('Add edges')
+
+    # Add edges to graph
+    for kv in E_Filtered.items():
+        G.add_edge(kv[0][0], kv[0][1], weight=kv[1])
+
+    # Finishing....
+    print('Finishing build graph')
+    
+    return G
+
+def build_hashtable(reads, qmer_length, n_procs=1):
+    lmers_dict = dict()
+    reads_sublist = split_list(reads, n_procs)
+
+    print('Reads: ', len(reads))
+    temp_dir = 'temp'
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+    procs = []
+    lmers_dicts = []
+    shared_mem_dicts = []
+    for i in range(n_procs):
+        # sub_lmers_dict = multiprocessing.Manager().dict()
+        pi = multiprocessing.Process(target=build_hashtable_worker,
+                                    args=[
+                                            reads_sublist[i],
+                                            qmer_length,
+                                            temp_dir,
+                                            i
+                                        ])
+        procs.append(pi)
+        # shared_mem_dicts.append(sub_lmers_dict)
+        pi.start()
+        print('Process bh spawn!')
+
+    for p in procs:
+        p.join()
+
+    for i in range(n_procs):
+        # with open(os.path.join(temp_dir, f'hash_dict_{i}'), 'r') as f:
+        #     lmers_dicts.append(json.load(f))
+        with open(os.path.join(temp_dir, f'hash_dict_{i}'), 'rb') as f:
+            d = pickle.load(f)
+            # d = {int(kv[0]): kv[1] for kv in d.items()}
+            lmers_dicts.append(d)
+
+    # for d in shared_mem_dicts:
+    #     lmers_dicts.append(d.copy())
+
+    lmers_dict = combine_lmers_dicts(lmers_dicts)
+    return lmers_dict
+
+def build_edges(lmers_dict, n_procs=1):
+    e_dict = dict()
+    print('aaa', len(lmers_dict))
+    sub_dicts = split_dict(lmers_dict, n_procs)
+    print('ccc', len(sub_dicts))
+    print('bbb', len(sub_dicts[0]))
+    procs = []
+    e_dicts = []
+    temp_dir = 'temp'
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+    for i in range(n_procs):
+        pi = multiprocessing.Process(target=build_edges_worker,
+                                    args=[
+                                            sub_dicts[i],
+                                            temp_dir,
+                                            i
+                                        ])
+        procs.append(pi)
+        pi.start()
+        print(f'Process be {i} spawn!')
+
+    for p in procs:
+        p.join()
+
+    # for d in shared_mem_dicts:
+    #     e_dicts.append(d.copy())
+    for i in range(n_procs):
+        # with open(os.path.join(temp_dir, f'edge_dict_{i}'), 'r') as f:
+        #     d = json.load(f)
+        #     d = {str2tuple(kv[0]): kv[1] for kv in d.items()}
+        with open(os.path.join(temp_dir, f'edge_dict_{i}'), 'rb') as f:
+            d = pickle.load(f)
+            # d = {str2tuple(kv[0]): kv[1] for kv in d.items()}
+
+            e_dicts.append(d)
+
+    e_dict = combine_e_dicts(e_dicts)
+    return e_dict
+
+
+def build_overlap_graph_fast(reads, labels, qmer_length, num_shared_reads, n_procs=1):
+    '''
+    Build overlapping graph
+    '''
+    for i, r in enumerate(reads):
+        reads[i] = reads[i].replace('N', '')
+    # Create hash table with q-mers are keys
+    lmers_dict = build_hashtable(reads, qmer_length, n_procs=n_procs)
+
+    print('Finish hashtable')
+    # Building edges
+    E = build_edges(lmers_dict, n_procs)
+
+    print('Finish edges')
+
     E_Filtered = {kv[0]: kv[1] for kv in E.items() if kv[1] >= num_shared_reads}
     print('Start initializing graph')
     # Initialize graph
@@ -443,7 +637,10 @@ if __name__ == "__main__":
     # splitted_dicts = split_dict(sample_dict, 10)
 
     # print(splitted_dicts)
-    val = hash2numeric('ACTACGATGATCTAGCTGATCTCACGGTTT')
-    print(numeric2hash(val))
+    # val = hash2numeric('ACTACGATGATCTAGCTGATCTCACGGTTT')
+    # print(numeric2hash(val))
+
+    a = (1334, 579, 9459, 1230, 19384,1200939,10231939,1,32,46,7,7,8)
+    print(str2tuple(str(a)))
 
     
