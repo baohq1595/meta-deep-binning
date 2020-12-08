@@ -76,12 +76,9 @@ def partial_build_graph_step1(reads, labels, qmer_length, num_shared_reads, save
         reads[i] = reads[i].replace('N', '')
 
     # Create hash table with q-mers are keys
-    # lmers_dict = build_hashtable(reads, qmer_length, save_dir=save_dir, n_procs=n_procs)
-    # lmers_dict = build_overlap_graph(reads, labels, qmer_length, num_shared_reads)
     lmers_dict=dict()
     for idx, r in enumerate(reads):
         for j in range(0,len(r)-qmer_length+1):
-            # lmer = r[j:j+qmer_length]
             lmer = hash2numeric(r[j:j+qmer_length])
             if lmer in lmers_dict:
                 lmers_dict[lmer] += [idx]
@@ -114,29 +111,12 @@ def partial_build_graph_step2(edge_file, labels, num_shared_reads, save_dir):
     with open(edge_file, 'rb') as f:
         E = pickle.load(f)
 
-    # E_Filtered = {kv[0]: kv[1] for kv in E.items() if kv[1] >= num_shared_reads}
-    # del E
-    
-    # with open(os.path.join(save_dir, 'edge_step2.pkl'), 'wb') as f:
-    #     pickle.dump(E_Filtered, f)
-        
-    # return os.path.join(save_dir, 'edge_step2.pkl')
-    #     with open(edge_file, 'rb') as f:
-#         E = pickle.load(f)
-    
-#     sub_dicts = split_dict(E, 3)
     i = 0
     print('..........')
     for sub_chunk in chunkize(E, 10):
         with open(os.path.join(save_dir, f'E_{i}.pkl'), 'wb') as f:
             pickle.dump(sub_chunk, f)
         i+=1
-    
-        # with open(os.path.join(save_dir, 'E_2.pkl'), 'wb') as f:
-        #     pickle.dump(sub_dicts[2], f)
-
-        # with open(os.path.join(save_dir, 'E_0.pkl'), 'wb') as f:
-        #     pickle.dump(sub_dicts[0], f)
         
     del E
     E_Filtered = {}
@@ -160,44 +140,6 @@ def partial_build_graph_step2(edge_file, labels, num_shared_reads, save_dir):
 
 
 def partial_build_graph_step3(edge_file, labels, num_shared_reads, save_dir):
-    # with open(edge_file, 'rb') as f:
-    #     E_Filtered = pickle.load(f)
-        
-    # sub_dicts = split_dict(E_Filtered, 3)
-    # with open(os.path.join(save_dir, 'E_Filtered_1.pkl'), 'wb') as f:
-    #     pickle.dump(sub_dicts[1], f)
-    
-    # with open(os.path.join(save_dir, 'E_Filtered_2.pkl'), 'wb') as f:
-    #     pickle.dump(sub_dicts[2], f)
-        
-    # with open(os.path.join(save_dir, 'E_Filtered_0.pkl'), 'wb') as f:
-    #     pickle.dump(sub_dicts[0], f)
-    
-    # del sub_dicts
-    # del E_Filtered
-    
-    # # Initialize graph
-    # G = nx.Graph()
-    
-    # # Add nodes to graph
-    # for i in range(0, len(labels)):
-    #     G.add_node(i, label=labels[i])
-    
-    
-    # for i in range(3):
-    #     print('Add edges')
-    #     with open(os.path.join(save_dir, f'E_Filtered_{i}.pkl'), 'rb') as f:
-    #         E_Filtered = pickle.load(f)
-
-    #     # Add edges to graph
-    #     for kv in E_Filtered.items():
-    #         G.add_edge(kv[0][0], kv[0][1], weight=kv[1])
-    #     del E_Filtered
-
-    # # Finishing....
-    # print('Finishing build graph')
-    
-    # return G
     # Initialize graph
     G = nx.Graph()
     
@@ -260,7 +202,7 @@ def dataset_constructor(fna_file, name,
                         maximum_seed_size, only_seed,
                         save_dir, n_procs=1):
     # Read fasta dataset
-    reads, labels = load_meta_reads(fna_file)
+    reads, labels = load_amd_reads(fna_file)
     save_file_step1 = ''
     save_file_step2 = ''
     
@@ -331,18 +273,21 @@ def dataset_constructor(fna_file, name,
 if __name__ == "__main__":
     # GROUP_SIZES = [1, 10, 25, 50, 75, 100, 150, 200, 500, 1000]
     GROUP_SIZES = [200, 500, 1000]
-    DATASET_NAME = 'S1'
-    PICKLE_DIR = f'data/simulated/{DATASET_NAME}/pickle'
-    FASTA_FILE = f'data/simulated/raw/{DATASET_NAME}.fna'
-    SAVE_DIR = f'data/simulated/temp'
+    DATASET_NAME = 'hmp'
+    PICKLE_DIR = f'data/{DATASET_NAME}/pickle'
+    FASTA_FILE = f'data/{DATASET_NAME}/raw/{DATASET_NAME}.fna'
+    SAVE_DIR = f'data/{DATASET_NAME}/temp'
     KMERS = [4]
     LMER = 30
-    NUM_SHARED_READS = 5
+    NUM_SHARED_READS = 5 if 'hmp' in DATASET_NAME else 45
     IS_NORMALIZE = True
     ONLY_SEED = True
 
     for d in [PICKLE_DIR, SAVE_DIR]:
         os.makedirs(d, exist_ok=True)
+
+    print(f'Processing {DATASET_NAME}...')
+    print(f'Num shared reads {NUM_SHARED_READS}...')
 
     for grsz in tqdm.tqdm_notebook(GROUP_SIZES):
         dataset_constructor(
