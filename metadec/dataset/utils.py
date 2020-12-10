@@ -280,7 +280,8 @@ def build_overlap_graph(reads, labels, qmer_length, num_shared_reads):
     lmers_dict=dict()
     for idx, r in enumerate(reads):
         for j in range(0,len(r)-qmer_length+1):
-            lmer = r[j:j+qmer_length]
+            # lmer = r[j:j+qmer_length]
+            lmer = hash2numeric(r[j:j+qmer_length])
             if lmer in lmers_dict:
                 lmers_dict[lmer] += [idx]
             else:
@@ -348,11 +349,11 @@ def split_dict(ori_dict, chunks=2):
 
     return splitted_dict
 
-def build_hashtable_worker(sub_reads, qmer_length, temp_dir, id):
+def build_hashtable_worker(sub_reads, qmer_length, temp_dir, id, offset):
     # Create hash table with q-mers are keys
     sub_lmers_dict = dict()
     print('Sub Reads: ', len(sub_reads))
-    for idx, r in enumerate(sub_reads):
+    for idx, r in enumerate(sub_reads, start=offset):
         for j in range(0,len(r)-qmer_length+1):
             lmer = r[j:j+qmer_length]
             encoded_lmer = hash2numeric(lmer)
@@ -475,26 +476,28 @@ def build_overlap_graph_v2(reads, labels, qmer_length, num_shared_reads):
     
     return G
 
-def build_hashtable(reads, qmer_length, n_procs=1):
+def build_hashtable(reads, qmer_length, save_dir, n_procs=1):
     lmers_dict = dict()
     reads_sublist = split_list(reads, n_procs)
 
     print('Reads: ', len(reads))
-    temp_dir = 'temp'
-    if not os.path.exists(temp_dir):
-        os.makedirs(temp_dir)
+    # temp_dir = 'temp'
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
     procs = []
     lmers_dicts = []
     shared_mem_dicts = []
+    offset = 0
     for i in range(n_procs):
         # sub_lmers_dict = multiprocessing.Manager().dict()
         pi = multiprocessing.Process(target=build_hashtable_worker,
                                     args=[
                                             reads_sublist[i],
                                             qmer_length,
-                                            temp_dir,
-                                            i
+                                            save_dir,
+                                            i, offset
                                         ])
+        offset += len(reads_sublist[i])
         procs.append(pi)
         # shared_mem_dicts.append(sub_lmers_dict)
         pi.start()
@@ -506,7 +509,7 @@ def build_hashtable(reads, qmer_length, n_procs=1):
     for i in range(n_procs):
         # with open(os.path.join(temp_dir, f'hash_dict_{i}'), 'r') as f:
         #     lmers_dicts.append(json.load(f))
-        with open(os.path.join(temp_dir, f'hash_dict_{i}'), 'rb') as f:
+        with open(os.path.join(save_dir, f'hash_dict_{i}'), 'rb') as f:
             d = pickle.load(f)
             # d = {int(kv[0]): kv[1] for kv in d.items()}
             lmers_dicts.append(d)
@@ -558,14 +561,14 @@ def build_edges(lmers_dict, n_procs=1):
     return e_dict
 
 
-def build_overlap_graph_fast(reads, labels, qmer_length, num_shared_reads, n_procs=1):
+def build_overlap_graph_fast(reads, labels, qmer_length, num_shared_reads, n_procs=1, save_dir='temp'):
     '''
     Build overlapping graph
     '''
     for i, r in enumerate(reads):
         reads[i] = reads[i].replace('N', '')
     # Create hash table with q-mers are keys
-    lmers_dict = build_hashtable(reads, qmer_length, n_procs=n_procs)
+    lmers_dict = build_hashtable(reads, qmer_length, save_dir=save_dir, n_procs=n_procs)
 
     print('Finish hashtable')
     # Building edges
@@ -647,10 +650,10 @@ if __name__ == "__main__":
     # splitted_dicts = split_dict(sample_dict, 10)
 
     # print(splitted_dicts)
-    # val = hash2numeric('ACTACGATGATCTAGCTGATCTCACGGTTT')
-    # print(numeric2hash(val))
+    val = hash2numeric('ACTACGATGATCTAGCTGATCTCACGGTTT')
+    print(numeric2hash(1152921504623642130))
 
-    a = (1334, 579, 9459, 1230, 19384,1200939,10231939,1,32,46,7,7,8)
-    print(str2tuple(str(a)))
+    # a = (1334, 579, 9459, 1230, 19384,1200939,10231939,1,32,46,7,7,8)
+    # print(str2tuple(str(a)))
 
     
