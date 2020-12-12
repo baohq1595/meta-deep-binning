@@ -375,13 +375,11 @@ def str2tuple(s):
         tup.append(int(it.group(0)))
     return tuple(tup)
 
-def build_edges_worker(lmers_dict, temp_dir, id):
+def build_edges_worker(lmers_dict, save_dir, id):
     e_dict = dict()
-    print(f'Start {id}')
     for encoded_lmer in lmers_dict:
         for e in it.combinations(lmers_dict[encoded_lmer], 2):
             if e[0]!=e[1]:
-                # e_curr=str((e[0],e[1]))
                 e_curr=(e[0],e[1])
             else:
                 continue
@@ -389,12 +387,8 @@ def build_edges_worker(lmers_dict, temp_dir, id):
                 e_dict[e_curr] += 1 # Number of connected lines between read a and b
             else:
                 e_dict[e_curr] = 1
-    
-    print(f'End {id}')
-    # with open(os.path.join(temp_dir, f'edge_dict_{id}'), 'w') as f:
-    #     json.dump(e_dict, f)
 
-    with open(os.path.join(temp_dir, f'edge_dict_{id}'), 'wb') as f:
+    with open(os.path.join(save_dir, f'edge_dict_{id}'), 'wb') as f:
         pickle.dump(e_dict, f)
 
     print('Worker finish')
@@ -489,7 +483,6 @@ def build_hashtable(reads, qmer_length, save_dir, n_procs=1):
     shared_mem_dicts = []
     offset = 0
     for i in range(n_procs):
-        # sub_lmers_dict = multiprocessing.Manager().dict()
         pi = multiprocessing.Process(target=build_hashtable_worker,
                                     args=[
                                             reads_sublist[i],
@@ -499,7 +492,6 @@ def build_hashtable(reads, qmer_length, save_dir, n_procs=1):
                                         ])
         offset += len(reads_sublist[i])
         procs.append(pi)
-        # shared_mem_dicts.append(sub_lmers_dict)
         pi.start()
         print('Process bh spawn!')
 
@@ -507,35 +499,25 @@ def build_hashtable(reads, qmer_length, save_dir, n_procs=1):
         p.join()
 
     for i in range(n_procs):
-        # with open(os.path.join(temp_dir, f'hash_dict_{i}'), 'r') as f:
-        #     lmers_dicts.append(json.load(f))
         with open(os.path.join(save_dir, f'hash_dict_{i}'), 'rb') as f:
             d = pickle.load(f)
-            # d = {int(kv[0]): kv[1] for kv in d.items()}
             lmers_dicts.append(d)
-
-    # for d in shared_mem_dicts:
-    #     lmers_dicts.append(d.copy())
 
     lmers_dict = combine_lmers_dicts(lmers_dicts)
     return lmers_dict
 
-def build_edges(lmers_dict, n_procs=1):
+def build_edges(lmers_dict, save_dir, n_procs=1):
     e_dict = dict()
-    print('aaa', len(lmers_dict))
     sub_dicts = split_dict(lmers_dict, n_procs)
-    print('ccc', len(sub_dicts))
-    print('bbb', len(sub_dicts[0]))
     procs = []
     e_dicts = []
-    temp_dir = 'temp'
-    if not os.path.exists(temp_dir):
-        os.makedirs(temp_dir)
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
     for i in range(n_procs):
         pi = multiprocessing.Process(target=build_edges_worker,
                                     args=[
                                             sub_dicts[i],
-                                            temp_dir,
+                                            save_dir,
                                             i
                                         ])
         procs.append(pi)
@@ -545,16 +527,9 @@ def build_edges(lmers_dict, n_procs=1):
     for p in procs:
         p.join()
 
-    # for d in shared_mem_dicts:
-    #     e_dicts.append(d.copy())
     for i in range(n_procs):
-        # with open(os.path.join(temp_dir, f'edge_dict_{i}'), 'r') as f:
-        #     d = json.load(f)
-        #     d = {str2tuple(kv[0]): kv[1] for kv in d.items()}
-        with open(os.path.join(temp_dir, f'edge_dict_{i}'), 'rb') as f:
+        with open(os.path.join(save_dir, f'edge_dict_{i}'), 'rb') as f:
             d = pickle.load(f)
-            # d = {str2tuple(kv[0]): kv[1] for kv in d.items()}
-
             e_dicts.append(d)
 
     e_dict = combine_e_dicts(e_dicts)

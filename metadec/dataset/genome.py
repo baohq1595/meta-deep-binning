@@ -39,19 +39,10 @@ class SimGenomeDataset():
         else:
             # Build overlapping (reads) graph
             start = time.time()
-            graph = build_overlap_graph_fast(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads, n_procs=n_procs)
+            graph = build_overlap_graph(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads)
             print("Time for build graph: ", time.time()-start)
             # Partitioning graph...
             self.groups, self.seeds = metis_partition_groups_seeds(graph, maximum_seed_size)
-
-        # with open(os.path.join('temp', 'corpus'), 'rb') as f:
-        #     corpus = pickle.load(f)
-
-        # with open(os.path.join('temp', 'dictionary'), 'rb') as f:
-        #     dictionary = pickle.load(f)
-
-        # with open(os.path.join('temp', 'documents'), 'rb') as f:
-        #     documents = pickle.load(f)
                 
         # Computing features...
         self.kmer_features = compute_kmer_dist(dictionary, corpus, self.groups, self.seeds, only_seed=only_seed)
@@ -114,22 +105,23 @@ class AMDGenomeDataset():
         # Read fasta dataset
         print('Read dataset...')
         self.reads, self.labels = load_amd_reads(fna_file)
+        basename = os.path.basename(fna_file).split('.')[0]
 
         # Creating document from reads...
-        if not os.path.exists(os.path.join('temp', 'corpus')):
+        if not os.path.exists(os.path.join('temp/basename', 'corpus')):
             dictionary, documents = create_document(self.reads, kmers)
 
             # Creating corpus...
             print('Creating corpus...')
             corpus = create_corpus(dictionary, documents, is_tfidf=is_tfidf)
 
-            if not os.path.exists('temp'):
-                os.makedirs('temp')
+            if not os.path.exists('temp/basename'):
+                os.makedirs('temp/basename')
 
-            with open(os.path.join('temp', 'corpus'), 'wb') as f:
+            with open(os.path.join('temp/basename', 'corpus'), 'wb') as f:
                 pickle.dump(corpus, f)
 
-            with open(os.path.join('temp', 'documents'), 'wb') as f:
+            with open(os.path.join('temp/basename', 'documents'), 'wb') as f:
                 pickle.dump(documents, f)
 
             with open(os.path.join('temp', 'dictionary'), 'wb') as f:
@@ -145,18 +137,18 @@ class AMDGenomeDataset():
             self.groups, self.seeds = self.deserialize_data(graph_file, self.reads)
         else:
             # Build overlapping (reads) graph
-            graph = build_overlap_graph_fast(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads, n_procs=n_procs)
+            graph = build_overlap_graph(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads)#, n_procs=n_procs)
             # Partitioning graph...
             self.groups, self.seeds = metis_partition_groups_seeds(graph, maximum_seed_size)
                 
         # Computing features...
-        with open(os.path.join('temp', 'corpus'), 'rb') as f:
+        with open(os.path.join('temp/basename', 'corpus'), 'rb') as f:
             corpus = pickle.load(f)
 
-        with open(os.path.join('temp', 'dictionary'), 'rb') as f:
+        with open(os.path.join('temp/basename', 'dictionary'), 'rb') as f:
             dictionary = pickle.load(f)
 
-        with open(os.path.join('temp', 'documents'), 'rb') as f:
+        with open(os.path.join('temp/basename', 'documents'), 'rb') as f:
             documents = pickle.load(f)
         self.kmer_features = compute_kmer_dist(dictionary, corpus, self.groups, self.seeds, only_seed=only_seed)
         del dictionary

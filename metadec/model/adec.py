@@ -645,7 +645,7 @@ def cluster(model: ADEC, seeds, groups, label,
         except:
             pass
 
-def pickling(seed_kmer_features, labels, groups, seeds, name, save_path):
+def pickling(seed_kmer_features, labels, groups, seeds, name, save_path, maximum_seed_size):
     save_dir = os.path.join(save_path, name)
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -658,7 +658,7 @@ def pickling(seed_kmer_features, labels, groups, seeds, name, save_path):
         'name': name
     }
 
-    with open(os.path.join(save_dir, 'data'), 'wb') as f:
+    with open(os.path.join(save_dir, f'data_{maximum_seed_size}'), 'wb') as f:
         pickle.dump(data, f)
 
 def load_pickle(file_path):
@@ -680,7 +680,7 @@ if __name__ == "__main__":
 
     # Versioning each runs
     ARCH = 'adec_genomics'
-    DATE = '20200913'
+    DATE = '20201212'
 
     # Training batchsize
     BATCH_SIZE = 256
@@ -704,7 +704,7 @@ if __name__ == "__main__":
     LMER = 30
     NUM_SHARED_READS = (5, 45)
     ONLY_SEED = True
-    MAXIMUM_SEED_SIZE = 200
+    MAXIMUM_SEED_SIZE = [50, 200, 1000]
 
     LOG_DIR = f'{RESULT_DIR}\log'
     MODEL_DIR = f'{RESULT_DIR}\model'
@@ -724,24 +724,27 @@ if __name__ == "__main__":
     if not os.path.exists(SAVE_DIR):
         os.makedirs(SAVE_DIR)
 
+    # Contains read file in fasta format
     raw_dir = os.path.join(DATASET_DIR, 'raw')
-    processed_dir = os.path.join(DATASET_DIR, 'processed_20200906')
+
+    # Contains pickle, just load pick and run, no need rebuild graph,...
     pickle_dir = os.path.join(DATASET_DIR, 'pickle')
-    if not os.path.exists(processed_dir):
-        os.makedirs(processed_dir)
     if not os.path.exists(pickle_dir):
         os.makedirs(pickle_dir)
+
+    # load all fasta files in raw_dir and run
     if DATASET_NAME == 'all':
         raw_datasets = glob.glob(raw_dir + '/*.fna')
     else:
+        # loading list of specified dataset names
         if type(DATASET_NAME) == list:
             raw_datasets = [os.path.join(raw_dir, ds_name + '.fna') for ds_name in DATASET_NAME]
-        else:    
+        else:
             raw_datasets = [os.path.join(raw_dir, DATASET_NAME + '.fna')]
 
     # Mapping of dataset and its corresponding number of clusters
     with open(META_INFO, 'r') as f:
-        n_clusters_mapping = json.load(f)['simulated']
+        n_clusters_mapping = json.load(f)
 
     kwargs = {
         'enc_act': tf.nn.relu,
@@ -750,133 +753,125 @@ if __name__ == "__main__":
         # 'critic': False
     }
 
-    is_pickle = False
-    from_pickle = True
+    is_pickle = True
+    from_pickle = False
+    amd_type = True # True if running with AMD or HMP dataset, otherwise, set to False
+
+    # Loops and run across datasets and maximum group size config
     for dataset in tqdm.tqdm(raw_datasets):
-    # Get some parameters
-        dataset_name = os.path.basename(dataset).split('.fna')[0]
-        save_dir = os.path.join(SAVE_DIR, dataset_name)
-        
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
-        
-        num_shared_read = NUM_SHARED_READS[1] if 'R' in dataset_name else NUM_SHARED_READS[0]
-        is_deserialize = os.path.exists(os.path.join(processed_dir, dataset_name + '.json'))
-        n_clusters = n_clusters_mapping[dataset_name]
-        
-        # Read dataset
-        # tqdm.tqdm.write(f'Processing dataset {dataset_name}...')
-        # tqdm.tqdm.write(f'Prior number of clusters: {n_clusters}...')
-        # tqdm.tqdm.write(f'Prior number of shared reads: {num_shared_read}...')
+        for maximum_seed_size in tqdm.tqdm(MAXIMUM_SEED_SIZE):
+            # Get some parameters
+            dataset_name = os.path.basename(dataset).split('.fna')[0]
+            save_dir = os.path.join(SAVE_DIR, dataset_name)
+            
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+            
+            # Number of shared reads for each datasets
+            if dataset_name.lower() == 'amd':
+                num_shared_read = 45
+            elif dataset_name.lower() == 'hmp':
+                num_shared_read = 5
+            else:
+                num_shared_read = NUM_SHARED_READS[1] if 'R' in dataset_name else NUM_SHARED_READS[0]
 
-        print(f'Processing dataset {dataset_name}...')
-        print(f'Prior number of clusters: {n_clusters}...')
-        print(f'Prior number of shared reads: {num_shared_read}...')
+            # Get number of clusters prior for each dataset
+            n_clusters = n_clusters_mapping[dataset_name]
 
-        is_deserialize = False
-        try:
+            # Logging
+            print(f'Processing dataset {dataset_name}...')
+            print(f'Prior number of clusters: {n_clusters}...')
+            print(f'Prior number of shared reads: {num_shared_read}...')
+
             if from_pickle:
-                seed_kmer_features, labels, groups, seeds = load_pickle(os.path.join(pickle_dir, dataset_name, 'data'))
+                seed_kmer_features, labels, groups, seeds = load_pickle(os.path.join(pickle_dir, dataset_name, f'data_{maximum_seed_size}'))
             else:
                 seed_kmer_features, labels, groups, seeds = load_genomics(
                     dataset,
                     kmers=KMERS,
                     lmer=LMER,
-                    maximum_seed_size=MAXIMUM_SEED_SIZE,
+                    maximum_seed_size=maximum_seed_size,
                     num_shared_reads=num_shared_read,
                     is_deserialize=True,
                     is_serialize=False,
                     is_normalize=True,
                     only_seed=ONLY_SEED,
-                    graph_file=os.path.join(processed_dir, dataset_name + '.json'),
-                    is_tfidf=False
+                    graph_file=None,
+                    is_tfidf=False,
+                    is_amd=amd_type,
+                    n_procs=4
                 )
-        except:
-            seed_kmer_features, labels, groups, seeds = load_genomics(
-                dataset,
-                kmers=KMERS,
-                lmer=LMER,
-                maximum_seed_size=MAXIMUM_SEED_SIZE,
-                num_shared_reads=num_shared_read,
-                is_deserialize=False,
-                is_serialize=False,
-                is_normalize=True,
-                only_seed=ONLY_SEED,
-                graph_file=os.path.join(processed_dir, dataset_name + '.json'),
-                is_tfidf=False
-            )
 
-        if is_pickle:
-            pickling(seed_kmer_features, labels, groups, seeds, dataset_name, pickle_dir)
+            # Pickling...
+            if is_pickle:
+                pickling(seed_kmer_features, labels, groups, seeds, dataset_name, pickle_dir, maximum_seed_size)
 
-        exit(1)
+            continue # Uncomment for continue training after building data
 
-        base_arch = [136, 500, 1000, 10]
-        disc_arch = [136, 500, 1000, 1]
-        drop = 0.0
-        l_coef = 0.5
+            base_arch = [136, 500, 1000, 10]
+            disc_arch = [136, 500, 1000, 1]
+            drop = 0.0
+            l_coef = 0.5
+                
+            adec = ADEC(n_clusters=n_clusters,
+                    ae_dims=base_arch,
+                    lambda_coef=l_coef,
+                    critic_dims=base_arch,
+                    discriminator_dims=disc_arch,
+                    dropout=drop,
+                    tol=TOL,
+                    **kwargs)
             
-        adec = ADEC(n_clusters=n_clusters,
-                ae_dims=base_arch,
-                lambda_coef=l_coef,
-                critic_dims=base_arch,
-                discriminator_dims=disc_arch,
-                dropout=drop,
-                tol=TOL,
-                **kwargs)
-        
-        wandb.init(project="adec-gene-tf-exp", config={
-            'name': dataset_name,
-            'n_clusters': n_clusters,
-            'n_shared_reads': num_shared_read,
-            'lmer': LMER,
-            'kmers': KMERS,
-            'max_seeds_size': MAXIMUM_SEED_SIZE,
-            'only_seed': ONLY_SEED,
-            'dropout': drop,
-            'arch': base_arch
-        })
+            wandb.init(project="adec-gene-tf-exp", config={
+                'name': dataset_name,
+                'n_clusters': n_clusters,
+                'n_shared_reads': num_shared_read,
+                'lmer': LMER,
+                'kmers': KMERS,
+                'max_seeds_size': MAXIMUM_SEED_SIZE,
+                'only_seed': ONLY_SEED,
+                'dropout': drop,
+                'arch': base_arch
+            })
 
-        initial_lr = 0.001
-        lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-                                        initial_lr,
-                                        decay_steps=50*(seed_kmer_features.shape[0] // BATCH_SIZE + 1),
-                                        decay_rate=0.90,
-                                        staircase=True)
-        adec.ae_optim = Adam(lr_schedule, epsilon=1e-8)
-        adec.critic_optim = Adam(lr_schedule)
-        
-        pretrain(model=adec,
-            seeds=np.array(seed_kmer_features),
-            groups=groups,
-            label=labels,
-            batch_size=BATCH_SIZE,
-            epochs=PRETRAIN_EPOCHS,
-            save_interval=PRETRAIN_EPOCHS // 50,
-            save_path='./pretrain/images')
+            initial_lr = 0.001
+            lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+                                            initial_lr,
+                                            decay_steps=50*(seed_kmer_features.shape[0] // BATCH_SIZE + 1),
+                                            decay_rate=0.90,
+                                            staircase=True)
+            adec.ae_optim = Adam(lr_schedule, epsilon=1e-8)
+            adec.critic_optim = Adam(lr_schedule)
+            
+            pretrain(model=adec,
+                seeds=np.array(seed_kmer_features),
+                groups=groups,
+                label=labels,
+                batch_size=BATCH_SIZE,
+                epochs=PRETRAIN_EPOCHS,
+                save_interval=PRETRAIN_EPOCHS // 50,
+                save_path='./pretrain/images')
 
-        adec.save('./pretrain_weights')
-        
-        pretrain_phase2(model=adec,
-            seeds=np.array(seed_kmer_features),
-            groups=groups,
-            label=labels,
-            batch_size=BATCH_SIZE,
-            epochs=PRETRAIN_PHASE2_EPOCHS,
-            save_interval=PRETRAIN_PHASE2_EPOCHS // 50,
-            save_path='./pretrain/images')
+            adec.save('./pretrain_weights')
+            
+            pretrain_phase2(model=adec,
+                seeds=np.array(seed_kmer_features),
+                groups=groups,
+                label=labels,
+                batch_size=BATCH_SIZE,
+                epochs=PRETRAIN_PHASE2_EPOCHS,
+                save_interval=PRETRAIN_PHASE2_EPOCHS // 50,
+                save_path='./pretrain/images')
 
-        adec.save('./pretrain_weights')
-        
-        cluster(model=adec,
-            seeds=np.array(seed_kmer_features),
-            groups=groups,
-            label=labels,
-            batch_size=BATCH_SIZE,
-            epochs=MAX_ITERS,
-            save_interval=10,
-            save_path='./pretrain/images')
+            adec.save('./pretrain_weights')
+            
+            cluster(model=adec,
+                seeds=np.array(seed_kmer_features),
+                groups=groups,
+                label=labels,
+                batch_size=BATCH_SIZE,
+                epochs=MAX_ITERS,
+                save_interval=10,
+                save_path='./pretrain/images')
 
-        adec.save('./weights')
-
-    # del seed_kmer_features, labels, groups, seeds
+            adec.save('./weights')
