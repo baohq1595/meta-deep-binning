@@ -112,7 +112,7 @@ def load_amd_reads(filename):
     label2idx = {label: i for i, label in enumerate(unique_label)}
     labels = [label2idx[label] for label in raw_labels]
     
-    return reads, labels
+    return reads, labels, label2idx
 
 
 def load_meta_reads(filename, type='fasta'):

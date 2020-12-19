@@ -40,6 +40,10 @@ def load_genomics(dataset_name,
             is_normalize=is_normalize,
             is_tfidf=is_tfidf,
             n_procs=n_procs)
+        return genomics_dataset.kmer_features,\
+            genomics_dataset.labels,\
+            genomics_dataset.groups,\
+            genomics_dataset.seeds
     else:
         genomics_dataset = AMDGenomeDataset(
             dataset_name, kmers, lmer,
@@ -53,10 +57,11 @@ def load_genomics(dataset_name,
             is_tfidf=is_tfidf,
             n_procs=n_procs)
 
-    return genomics_dataset.kmer_features,\
-        genomics_dataset.labels,\
-        genomics_dataset.groups,\
-        genomics_dataset.seeds
+        return genomics_dataset.kmer_features,\
+            genomics_dataset.labels,\
+            genomics_dataset.groups,\
+            genomics_dataset.seeds,\
+            genomics_dataset.label2idx
 
 
 def export_clustering_results(raw_reads, groups, n_clusters, y_pred, save_path):
