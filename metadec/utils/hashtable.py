@@ -52,9 +52,6 @@ def numeric2lmer(numeric_val, expected_length=30):
 
     return ''.join(list(reversed(chars)))
 
-def tuple2numeric(tuple_val):
-    
-
 class Node:
     def __init__(self, key, value, encode_key):
         encoded_key = key
@@ -139,8 +136,8 @@ class LinkedList:
 
 class Hashtable:
     def __init__(self, hash_size):
-        self.size = hash_size
-        self.hashmap = np.array([None]*self.size)
+        self.size = int(hash_size)
+        self.hashmap = np.array([None]*int(self.size))
         
         # init each element to be a linkedlist
         for i in range(self.size):
