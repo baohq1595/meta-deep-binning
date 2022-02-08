@@ -15,6 +15,8 @@ import pickle
 import os, sys
 import math
 
+from metadec.utils.hashtable import hash2numeric, numeric2hash, simple_str2numeric, Hashtable
+
 def load_amd_reads(filename):
     with open(filename, 'r') as f:
         lines = f.readlines()
@@ -200,19 +202,25 @@ def compute_kmer_dist(dictionary, corpus, groups, seeds, only_seed=True):
     return np.array(res)
 
 
-def build_overlap_graph(reads, labels, qmer_length, num_shared_reads):
+def build_overlap_graph(reads, labels, qmer_length, num_shared_reads, hash_size):
     '''
     Build overlapping graph
     '''
     # Create hash table with q-mers are keys
-    lmers_dict=dict()
+    # lmers_dict=dict()
+    lmers_dict = Hashtable(hash_size)
     for idx, r in enumerate(reads):
         for j in range(0,len(r)-qmer_length+1):
-            lmer = r[j:j+qmer_length]
-            if lmer in lmers_dict:
-                lmers_dict[lmer] += [idx]
+            # lmer = r[j:j+qmer_length]
+            lmer = simple_str2numeric(r[j:j+qmer_length])
+            # if lmer in lmers_dict:
+            #     lmers_dict[lmer] += [idx]
+            # else:
+            #     lmers_dict[lmer] = [idx]
+            if lmers_dict.get(lmer) is None:
+                lmers_dict.insert(lmer, [idx])
             else:
-                lmers_dict[lmer] = [idx]
+                lmers_dict.get(lmer, []).append(idx)
 
     print('Finish hashtable')
     # Building edges
@@ -227,6 +235,18 @@ def build_overlap_graph(reads, labels, qmer_length, num_shared_reads):
                 E[e_curr] += 1 # Number of connected lines between read a and b
             else:
                 E[e_curr] = 1
+    # E = Hashtable(hash_size)
+    # for lmer in lmers_dict:
+    #     for e in it.combinations(lmers_dict[lmer],2):
+    #         if e[0]!=e[1]:
+    #             e_curr=(e[0],e[1])
+    #         else:
+    #             continue
+    #         if E.get(e_curr) is not None:
+    #             E.get(e_curr) += 1 # Number of connected lines between read a and b
+    #         else:
+    #             E.insert(e_curr, 1)
+
     E_Filtered = {kv[0]: kv[1] for kv in E.items() if kv[1] >= num_shared_reads}
     print('Start initializing graph')
     # Initialize graph
