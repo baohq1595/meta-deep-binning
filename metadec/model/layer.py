@@ -1,7 +1,7 @@
-import keras.backend as K
-from keras.models import Model
-from keras.engine.topology import Layer, InputSpec
-from keras.layers import Dense, Input, Dropout
+import tensorflow.keras.backend as K
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Layer, InputSpec
+from tensorflow.keras.layers import Dense, Input, Dropout
 
 def autoencoder(dims, act='relu', init='glorot_uniform', dropout=0.0):
     """

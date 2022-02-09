@@ -2,10 +2,8 @@ import glob, os, time
 import json
 import argparse
 
-from keras.models import Model
-from keras.optimizers import SGD, Adam
-from keras import callbacks
-from keras.initializers import VarianceScaling
+from tensorflow.keras.optimizers import SGD
+from tensorflow.keras.initializers import VarianceScaling
 
 from metadec.dataset.genome import SimGenomeDataset
 from metadec.model.dec import DEC
@@ -84,7 +82,7 @@ KMERS = [4]
 LMER = 30
 NUM_SHARED_READS = (5, 45)
 ONLY_SEED = True
-MAXIMUM_SEED_SIZE = 9000
+MAXIMUM_SEED_SIZE = 200
 
 raw_dir = os.path.join(DATASET_DIR, 'raw')
 processed_dir = os.path.join(DATASET_DIR, 'processed')
@@ -117,32 +115,32 @@ for dataset in raw_datasets:
         print(f'Prior number of clusters: {n_clusters}...')
         print(f'Prior number of shared reads: {num_shared_read}...')
 
-    try:
-        seed_kmer_features, labels, groups, seeds = load_genomics(
-            dataset,
-            kmers=KMERS,
-            lmer=LMER,
-            maximum_seed_size=MAXIMUM_SEED_SIZE,
-            num_shared_reads=num_shared_read,
-            is_deserialize=is_deserialize,
-            is_serialize=~is_deserialize,
-            is_normalize=True,
-            only_seed=ONLY_SEED,
-            graph_file=os.path.join(processed_dir, dataset_name + '.json')
-        )
-    except:
-        seed_kmer_features, labels, groups, seeds = load_genomics(
-            dataset,
-            kmers=KMERS,
-            lmer=LMER,
-            maximum_seed_size=MAXIMUM_SEED_SIZE,
-            num_shared_reads=num_shared_read,
-            is_deserialize=False,
-            is_serialize=True,
-            is_normalize=True,
-            only_seed=ONLY_SEED,
-            graph_file=os.path.join(processed_dir, dataset_name + '.json')
-        )
+    # try:
+    seed_kmer_features, labels, groups, seeds = load_genomics(
+        dataset,
+        kmers=KMERS,
+        lmer=LMER,
+        maximum_seed_size=MAXIMUM_SEED_SIZE,
+        num_shared_reads=num_shared_read,
+        is_deserialize=False,
+        is_serialize=False,
+        is_normalize=True,
+        only_seed=ONLY_SEED,
+        graph_file=os.path.join(processed_dir, dataset_name + '.json')
+    )
+    # except:
+    #     seed_kmer_features, labels, groups, seeds = load_genomics(
+    #         dataset,
+    #         kmers=KMERS,
+    #         lmer=LMER,
+    #         maximum_seed_size=MAXIMUM_SEED_SIZE,
+    #         num_shared_reads=num_shared_read,
+    #         is_deserialize=False,
+    #         is_serialize=True,
+    #         is_normalize=True,
+    #         only_seed=ONLY_SEED,
+    #         graph_file=os.path.join(processed_dir, dataset_name + '.json')
+    #     )
     
     # continue
     # Initialize model

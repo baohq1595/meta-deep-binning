@@ -53,9 +53,8 @@ def numeric2lmer(numeric_val, expected_length=30):
     return ''.join(list(reversed(chars)))
 
 class Node:
-    def __init__(self, key, value, encode_key):
-        encoded_key = key
-        self.key = encoded_key
+    def __init__(self, key, value):
+        self.key = key
         self.value = value
         self.next = None
         
@@ -70,9 +69,9 @@ class Node:
 
 
 class LinkedList:
-    def __init__(self, encode_key=True):
+    def __init__(self):
         self.head = None
-        self.encode = encode_key
+        
         
     def search(self, key):
         temp = self.head
@@ -90,7 +89,7 @@ class LinkedList:
         if s_node:
             s_node.value = value
         else:
-            new_node = Node(key, value, self.encode)
+            new_node = Node(key, value)
             if self.head is not None:
                 new_node.next = self.head
             # current head points to newly inserted note
@@ -122,6 +121,17 @@ class LinkedList:
             prev = temp
         
         return False
+
+    def tolist(self):
+        result = []
+        temp = self.head
+        if not temp:
+            return result
+        while temp:
+            result.append(temp.value)
+            temp = temp.next
+        
+        return result
     
     def print_list(self):
         temp = self.head
@@ -147,7 +157,7 @@ class Hashtable:
         if type(key) is not int:
             # raise Exception('Key of hashmap should be in int')
             # convert to hash value
-            key = simple_str2numeric(key)
+            key = lmer2numeric(key)
             
         return key % self.size
             

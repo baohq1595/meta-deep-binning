@@ -201,22 +201,30 @@ def compute_kmer_dist(dictionary, corpus, groups, seeds, only_seed=True):
             res += [np.mean(tmp, axis=0)]
     return np.array(res)
 
-
-def build_overlap_graph(reads, labels, qmer_length, num_shared_reads, hash_size):
+@profile
+def build_overlap_graph_hash(reads, labels, qmer_length, num_shared_reads, hash_size):
     '''
     Build overlapping graph
     '''
     # Create hash table with q-mers are keys
     # lmers_dict=dict()
     print('Build hashtable')
+    zzz = 0
     lmers_dict = Hashtable(hash_size)
     for idx, r in enumerate(reads):
         for j in range(0,len(r)-qmer_length+1):
             lmer = simple_str2numeric(r[j:j+qmer_length])
-            if lmers_dict.get(lmer, default_value=None) is None:
+            if lmers_dict.get(lmer, []) == []:
                 lmers_dict.insert(lmer, [idx])
             else:
-                lmers_dict.get(lmer, []).append(idx)
+                lmers_dict.get(lmer).append(idx)
+
+            zzz += 1
+
+    print(f'Num of reads: {len(reads)}')
+    print(f'Size of hashmap: {zzz}')
+
+    # lmers_dict.print_hash()
 
     print('Start initializing graph')
     # Initialize graph
@@ -229,18 +237,84 @@ def build_overlap_graph(reads, labels, qmer_length, num_shared_reads, hash_size)
 
     # Add edges to graph
     print('Add edges')
+    xxx = 0
     for i in range(lmers_dict.size):
-        seq_id_list = lmers_dict.hashmap[i]
-        if seq_id_list is None:
+        seq_id_linklist = lmers_dict.hashmap[i] # linkedlist object
+        if seq_id_linklist is None:
             continue
-        for e in it.combinations(seq_id_list,2):
-            if e[0] != e[1]:
-                if G.has_edge(**e):
-                    G[e[0]][e[1]]['weight'] += 1
+
+        # 2d list, each element contains a list of id of reads have overlapped lmer
+        seq_id_2dlist = seq_id_linklist.tolist()
+        for seq_id_list in seq_id_2dlist:
+            for e in it.combinations(seq_id_list,2):
+                if e[0] != e[1]:
+                    xxx += 1
+                    if G.has_edge(*e):
+                        G[e[0]][e[1]]['weight'] += 1
+                    else:
+                        G.add_edge(e[0], e[1], weight=1)
                 else:
-                    G.add_edge(e[0], e[1], weight=1)
+                    continue
+
+        # Remove weight<5 edges 
+        edges2remove = []
+        for e in G.edges:
+            if G[e[0]][e[1]]['weight'] < 5:
+                edges2remove.append(e)
+
+        G.remove_edges_from(edges2remove)
+    
+    print(f'Size of Edge hashmap: {xxx}')
+    # Finishing....
+    print('Finishing build graph')
+    
+    return G
+
+@profile
+def build_overlap_graph(reads, labels, qmer_length, num_shared_reads, hash_size):
+    '''
+    Build overlapping graph
+    '''
+    # Create hash table with q-mers are keys
+    lmers_dict=dict()
+    for idx, r in enumerate(reads):
+        for j in range(0,len(r)-qmer_length+1):
+            lmer = r[j:j+qmer_length]
+            if lmer in lmers_dict:
+                lmers_dict[lmer] += [idx]
+            else:
+                lmers_dict[lmer] = [idx]
+
+    print('Finish hashtable')
+    # Building edges
+    E=dict()
+    for lmer in lmers_dict:
+        for e in it.combinations(lmers_dict[lmer],2):
+            if e[0]!=e[1]:
+                e_curr=(e[0],e[1])
             else:
                 continue
+            if e_curr in E:
+                E[e_curr] += 1 # Number of connected lines between read a and b
+            else:
+                E[e_curr] = 1
+    E_Filtered = {kv[0]: kv[1] for kv in E.items() if kv[1] >= num_shared_reads}
+    print('Start initializing graph')
+    # Initialize graph
+    G = nx.Graph()
+
+    print('Add nodes')
+    
+    # Add nodes to graph
+    color_map = {0: 'red', 1: 'green', 2: 'blue', 3: 'yellow', 4: 'darkcyan', 5: 'violet'}
+    for i in range(0, len(labels)):
+        G.add_node(i, label=labels[i])
+
+    print('Add edges')
+
+    # Add edges to graph
+    for kv in E_Filtered.items():
+        G.add_edge(kv[0][0], kv[0][1], weight=kv[1])
 
     # Finishing....
     print('Finishing build graph')

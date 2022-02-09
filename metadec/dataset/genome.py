@@ -13,7 +13,7 @@ class SimGenomeDataset():
     '''
     def __init__(self, fna_file, kmers: list, qmers, num_shared_reads,
                      maximum_seed_size=5000, only_seed=False, is_normalize=True,
-                     graph_file=None, is_serialize=False, is_deserialize=False, is_tfidf=False, hash_size=1e6):
+                     graph_file=None, is_serialize=False, is_deserialize=False, is_tfidf=False, hash_size=100000):
         '''
         Args:
             kmers: a list of kmer values. 
@@ -38,7 +38,7 @@ class SimGenomeDataset():
             self.groups, self.seeds = self.deserialize_data(graph_file, self.reads)
         else:
             # Build overlapping (reads) graph
-            graph = build_overlap_graph(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads, hash_size=hash_size)
+            graph = build_overlap_graph_hash(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads, hash_size=hash_size)
             # Partitioning graph...
             self.groups, self.seeds = metis_partition_groups_seeds(graph, maximum_seed_size)
 

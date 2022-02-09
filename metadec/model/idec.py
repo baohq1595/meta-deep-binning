@@ -17,13 +17,11 @@ Author:
 
 import time, os
 import numpy as np
-from keras.models import Model
-from keras.optimizers import SGD
-from keras.utils.vis_utils import plot_model
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import SGD, Adam
+# from keras.utils.vis_utils import plot_model
 
-from sklearn import metrics
-from keras import callbacks
-from keras.initializers import VarianceScaling
+from tensorflow.keras import callbacks
 from sklearn.cluster import KMeans
 
 from metadec.model.keras_callback import MetricsLog
@@ -55,13 +53,13 @@ class IDEC(object):
         clustering_layer = ClusteringLayer(self.n_clusters, name='clustering')(latent_layer)
         self.model = Model(inputs=self.autoencoder.input, outputs=[clustering_layer, self.autoencoder.output])
 
-    def compile(self, optimizer='sgd', autoencoder_loss='mse', clustering_loss='kld'):
+    def compile(self, optimizer=SGD, autoencoder_loss='mse', clustering_loss='kld'):
         self.model.compile(loss={'clustering': clustering_loss,
                                 'decoder_reconstruction': autoencoder_loss},
                                 loss_weights=[self.gamma, 1],
                                 optimizer=optimizer)
 
-    def pretrain(self, x, y=None, grps=None, optimizer='adam', epochs=200, batch_size=256, save_dir='results/temp', wandb=False):
+    def pretrain(self, x, y=None, grps=None, optimizer=Adam, epochs=200, batch_size=256, save_dir='results/temp', wandb=False):
         self.autoencoder.compile(optimizer=optimizer, loss='mse')
         csv_logger = callbacks.CSVLogger(save_dir + '/pretrain_log.csv')
         cb = [csv_logger]
@@ -237,7 +235,7 @@ if __name__ == "__main__":
     # prepare the IDEC model
     idec = IDEC(dims=[x.shape[-1], 500, 500, 2000, 10], n_clusters=args.n_clusters, batch_size=args.batch_size)
     idec.initialize_model(ae_weights=args.ae_weights, gamma=args.gamma, optimizer=optimizer)
-    plot_model(idec.model, to_file='idec_model.png', show_shapes=True)
+    # plot_model(idec.model, to_file='idec_model.png', show_shapes=True)
     idec.model.summary()
 
     # begin clustering, time not include pretraining part.
