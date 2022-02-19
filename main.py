@@ -2,10 +2,8 @@ import glob, os, time
 import json
 import argparse
 
-from keras.models import Model
-from keras.optimizers import SGD, Adam
-from keras import callbacks
-from keras.initializers import VarianceScaling
+from tensorflow.keras.optimizers import SGD
+from tensorflow.keras.initializers import VarianceScaling
 
 from metadec.dataset.genome import SimGenomeDataset
 from metadec.model.dec import DEC
@@ -19,7 +17,7 @@ sys.path.append('.')
 
 
 RESULT_DIR = 'results'
-GEN_DATA_DIR = 'data/simulated'
+GEN_DATA_DIR = 'data/real'
 
 # Versioning each runs
 ARCH = 'dec_genomics'
@@ -40,7 +38,7 @@ AE_WEIGHTS = None
 # Dir contains raw fasta data
 DATASET_DIR = GEN_DATA_DIR
 # Specifc dataset or all of them
-DATASET_NAME = 'S1'
+DATASET_NAME = 'taxo_amd'
 
 # MODEL_DIR = f'/content/drive/My Drive/DL/{ARCH}/{DATE}/models'
 # LOG_DIR = f'/content/drive/My Drive/DL/{ARCH}/{DATE}/logs/'
@@ -109,7 +107,8 @@ for dataset in raw_datasets:
     
     num_shared_read = NUM_SHARED_READS[1] if 'R' in dataset_name else NUM_SHARED_READS[0]
     is_deserialize = os.path.exists(os.path.join(processed_dir, dataset_name + '.json'))
-    n_clusters = n_clusters_mapping[dataset_name]
+    # n_clusters = n_clusters_mapping[dataset_name]
+    n_clusters = 5
     
     if verbose:
         # Read dataset
@@ -118,7 +117,7 @@ for dataset in raw_datasets:
         print(f'Prior number of shared reads: {num_shared_read}...')
 
     try:
-        seed_kmer_features, labels, groups, seeds = load_genomics(
+        genome_dataset = load_genomics(
             dataset,
             kmers=KMERS,
             lmer=LMER,
@@ -128,10 +127,11 @@ for dataset in raw_datasets:
             is_serialize=~is_deserialize,
             is_normalize=True,
             only_seed=ONLY_SEED,
-            graph_file=os.path.join(processed_dir, dataset_name + '.json')
+            graph_file=os.path.join(processed_dir, dataset_name + '.json'),
+            is_amd=True
         )
     except:
-        seed_kmer_features, labels, groups, seeds = load_genomics(
+        genome_dataset = load_genomics(
             dataset,
             kmers=KMERS,
             lmer=LMER,
@@ -141,8 +141,13 @@ for dataset in raw_datasets:
             is_serialize=True,
             is_normalize=True,
             only_seed=ONLY_SEED,
-            graph_file=os.path.join(processed_dir, dataset_name + '.json')
+            graph_file=os.path.join(processed_dir, dataset_name + '.json'),
+            is_amd=True
         )
+
+    seed_kmer_features, labels, groups, seeds, label2idx = genome_dataset.kmer_features, genome_dataset.labels,\
+                                                            genome_dataset.groups, genome_dataset.seeds,\
+                                                            genome_dataset.label2idx
     
     # continue
     # Initialize model

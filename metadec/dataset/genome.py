@@ -22,7 +22,7 @@ class SimGenomeDataset():
             graph_file: calculated groups and seeds (json).
         '''
         # Read fasta dataset
-        self.reads, self.labels = load_meta_reads(fna_file, type='fasta')
+        self.reads, self.labels, self.label2idx = load_meta_reads(fna_file, type='fasta')
 
         # Creating document from reads...
         dictionary, documents = create_document(self.reads, kmers)
@@ -35,7 +35,7 @@ class SimGenomeDataset():
 
         if is_deserialize:
             # Deserializing data...
-            self.groups, self.seeds = self.deserialize_data(graph_file, self.reads)
+            self.groups, self.seeds, self.label2idx = self.deserialize_data(graph_file, self.reads)
         else:
             # Build overlapping (reads) graph
             graph = build_overlap_graph(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads)
@@ -59,20 +59,21 @@ class SimGenomeDataset():
 
         if is_serialize:
             print('Serializing data to...', graph_file)
-            self.serialize_data(self.groups, self.seeds, graph_file)
+            self.serialize_data(self.groups, self.seeds, self.label2idx, graph_file)
 
         if is_normalize:
             # Normalizing...
             scaler = StandardScaler()
             self.kmer_features = scaler.fit_transform(self.kmer_features)
     
-    def serialize_data(self, groups, seeds, graph_file):
+    def serialize_data(self, groups, seeds, label2idx, graph_file):
         '''
         Save groups and seeds id to json file
         '''
         serialize_dict = {
             'groups': groups,
-            'seeds': seeds
+            'seeds': seeds,
+            'label2idx': str(label2idx)
         }
 
         with open(graph_file, 'w') as fg:
@@ -89,8 +90,9 @@ class SimGenomeDataset():
 
         groups = data['groups']
         seeds = data['seeds']
+        label2idx = data['label2idx']
 
-        return groups, seeds
+        return groups, seeds, label2idx
 
 
 class AMDGenomeDataset():
@@ -110,7 +112,7 @@ class AMDGenomeDataset():
             graph_file: calculated groups and seeds (json).
         '''
         # Read fasta dataset
-        self.reads, self.labels = load_amd_reads(fna_file)
+        self.reads, self.labels, self.label2idx = load_amd_reads(fna_file)
 
         # Creating document from reads...
         if not os.path.exists(os.path.join('temp', 'corpus')):
@@ -138,7 +140,7 @@ class AMDGenomeDataset():
 
         if is_deserialize:
             # Deserializing data...
-            self.groups, self.seeds = self.deserialize_data(graph_file, self.reads)
+            self.groups, self.seeds, self.label2idx = self.deserialize_data(graph_file, self.reads)
         else:
             # Build overlapping (reads) graph
             graph = build_overlap_graph_v2(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads)
@@ -161,20 +163,21 @@ class AMDGenomeDataset():
 
         if is_serialize:
             print('Serializing data to...', graph_file)
-            self.serialize_data(self.groups, self.seeds, graph_file)
+            self.serialize_data(self.groups, self.seeds, self.label2idx, graph_file)
 
         if is_normalize:
             # Normalizing...
             scaler = StandardScaler()
             self.kmer_features = scaler.fit_transform(self.kmer_features)
     
-    def serialize_data(self, groups, seeds, graph_file):
+    def serialize_data(self, groups, seeds, label2idx, graph_file):
         '''
         Save groups and seeds id to json file
         '''
         serialize_dict = {
             'groups': groups,
-            'seeds': seeds
+            'seeds': seeds,
+            'label2idx': str(label2idx)
         }
 
         with open(graph_file, 'w') as fg:
@@ -191,5 +194,6 @@ class AMDGenomeDataset():
 
         groups = data['groups']
         seeds = data['seeds']
+        label2idx = data['label2idx']
 
-        return groups, seeds
+        return groups, seeds, label2idx

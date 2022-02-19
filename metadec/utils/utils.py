@@ -50,11 +50,7 @@ def load_genomics(dataset_name,
             is_normalize=is_normalize,
             is_tfidf=is_tfidf)
 
-    return genomics_dataset.kmer_features,\
-        genomics_dataset.labels,\
-        genomics_dataset.groups,\
-        genomics_dataset.seeds
-
+    return genomics_dataset
 
 def export_clustering_results(raw_reads, groups, n_clusters, y_pred, save_path):
     exported_results = {k+1: [] for k in range(n_clusters)}

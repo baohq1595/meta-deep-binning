@@ -1,5 +1,5 @@
-from keras.models import Model
-from keras import callbacks
+from tensorflow.keras.models import Model
+from tensorflow.keras import callbacks
 from sklearn.cluster import KMeans
 import numpy as np
 

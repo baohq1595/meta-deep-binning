@@ -22,7 +22,6 @@ def load_amd_reads(filename):
     reads = []
     raw_labels = []
     labels = []
-    is_read_part = False
     read_frags = []
     for k, line in enumerate(lines):
         line = line.strip()
@@ -37,10 +36,16 @@ def load_amd_reads(filename):
             read_frags.append(line)
 
     unique_label = list(set(raw_labels))
+    # label2idx = {}
+    # cur_index = 0
+    # for label in raw_labels:
+    #     if label not in label2idx:
+    #         label2idx[label] = cur_index
+    #         cur_index += 1
+
     label2idx = {label: i for i, label in enumerate(unique_label)}
     labels = [label2idx[label] for label in raw_labels]
-    
-    return reads, labels
+    return reads, labels, label2idx
 
 
 def load_meta_reads(filename, type='fasta'):
@@ -77,11 +82,11 @@ def load_meta_reads(filename, type='fasta'):
 
         del seqs
 
-        return reads, labels
+        return reads, labels, label_list
     except Exception as e:
         print('Error when loading file {} '.format(filename))
         print('Cause: ', e)
-        return []
+        return None
 
 def gen_kmers(klist):
     '''
@@ -199,23 +204,19 @@ def compute_kmer_dist(dictionary, corpus, groups, seeds, only_seed=True):
             res += [np.mean(tmp, axis=0)]
     return np.array(res)
 
-
-def build_overlap_graph(reads, labels, qmer_length, num_shared_reads):
-    '''
-    Build overlapping graph
-    '''
-    # Create hash table with q-mers are keys
+def build_hash_table(reads, qmer_length):
     lmers_dict=dict()
     for idx, r in enumerate(reads):
         for j in range(0,len(r)-qmer_length+1):
-            lmer = r[j:j+qmer_length]
+            lmer = hash(r[j:j+qmer_length])
             if lmer in lmers_dict:
                 lmers_dict[lmer] += [idx]
             else:
                 lmers_dict[lmer] = [idx]
+        
+    return lmers_dict
 
-    print('Finish hashtable')
-    # Building edges
+def find_overlap_lmer(lmers_dict, num_shared_reads):
     E=dict()
     for lmer in lmers_dict:
         for e in it.combinations(lmers_dict[lmer],2):
@@ -228,25 +229,39 @@ def build_overlap_graph(reads, labels, qmer_length, num_shared_reads):
             else:
                 E[e_curr] = 1
     E_Filtered = {kv[0]: kv[1] for kv in E.items() if kv[1] >= num_shared_reads}
-    print('Start initializing graph')
+
+    return E_Filtered
+
+
+def build_overlap_graph(reads, labels, qmer_length, num_shared_reads):
+    '''
+    Build overlapping graph
+    '''
+    # Create hash table with q-mers are keys
+    print('Building hashtable...')
+    lmers_dict = build_hash_table(reads, qmer_length)
+
+    
+    # Building edges
+    print('Finding overlapped lmer...')
+    E_Filtered = find_overlap_lmer(lmers_dict, num_shared_reads)
+    
+    print('Start initializing graph...')
     # Initialize graph
     G = nx.Graph()
 
-    print('Add nodes')
-    
+    print('Add nodes!!!')
     # Add nodes to graph
-    color_map = {0: 'red', 1: 'green', 2: 'blue', 3: 'yellow', 4: 'darkcyan', 5: 'violet'}
     for i in range(0, len(labels)):
         G.add_node(i, label=labels[i])
 
-    print('Add edges')
-
+    print('Add edges!!!')
     # Add edges to graph
     for kv in E_Filtered.items():
         G.add_edge(kv[0][0], kv[0][1], weight=kv[1])
 
     # Finishing....
-    print('Finishing build graph')
+    print('Finishing build graph.')
     
     return G
 

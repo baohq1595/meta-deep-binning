@@ -17,13 +17,11 @@ Author:
 
 import time, os
 import numpy as np
-from keras.models import Model
-from keras.optimizers import SGD
-from keras.utils.vis_utils import plot_model
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import SGD, Adam
 
 from sklearn import metrics
-from keras import callbacks
-from keras.initializers import VarianceScaling
+from tensorflow.keras import callbacks
 from sklearn.cluster import KMeans
 
 from metadec.model.keras_callback import MetricsLog
