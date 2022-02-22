@@ -1,3 +1,4 @@
+from bz2 import compress
 import itertools as it
 import numpy as np
 import networkx as nx
@@ -245,6 +246,77 @@ def build_overlap_graph(reads, labels, qmer_length, num_shared_reads):
     # Building edges
     print('Finding overlapped lmer...')
     E_Filtered = find_overlap_lmer(lmers_dict, num_shared_reads)
+    
+    print('Start initializing graph...')
+    # Initialize graph
+    G = nx.Graph()
+
+    print('Add nodes!!!')
+    # Add nodes to graph
+    for i in range(0, len(labels)):
+        G.add_node(i, label=labels[i])
+
+    print('Add edges!!!')
+    # Add edges to graph
+    for kv in E_Filtered.items():
+        G.add_edge(kv[0][0], kv[0][1], weight=kv[1])
+
+    # Finishing....
+    print('Finishing build graph.')
+    
+    return G
+
+def build_overlap_graph_low_mem(reads, labels, qmer_length, num_shared_reads, parts=100, comp='gzip'):
+    '''
+    Build overlapping graph
+    '''
+    from compress_pickle import dump, load
+
+    # Create hash table with q-mers are keys
+    print('Building hashtable...')
+    lmers_dict = build_hash_table(reads, qmer_length)
+
+    # pickle and compress
+    chunks = split_dict(lmers_dict, parts)
+    pickle_dir = 'temp/pickle'
+    if not os.path.exists(pickle_dir):
+        os.makedirs(pickle_dir)
+
+    batch_size = len(lmers_dict) // parts
+    offset = 0
+    pickle_paths = []
+    for i in range(chunks):
+        if i < chunks - 1:
+            cur_dict = {k:lmers_dict[k] for k in list(lmers_dict.keys())[offset:offset + batch_size]}
+            offset += batch_size
+        else:
+            cur_dict = {k:lmers_dict[k] for k in list(lmers_dict.keys())[offset:]}
+
+        pickle_path = os.path.join(pickle_dir, f'hash_pkl_{i}.dat')
+        pickle_paths.append(pickle_path)
+        with open(pickle_path, 'wb') as f:
+            dump(cur_dict, f, compression=comp, set_default_extension=False)
+    
+    del lmers_dict
+        
+    # Building edges
+    print('Finding overlapped lmer...')
+
+    E=dict()
+    for pickle_path in pickle_paths:
+        lmers_dict = load(pickle_path, compression=comp, set_default_extension=False)
+        for lmer in lmers_dict:
+            for e in it.combinations(lmers_dict[lmer], 2):
+                if e[0]!=e[1]:
+                    e_curr=(e[0],e[1])
+                else:
+                    continue
+                if e_curr in E:
+                    E[e_curr] += 1 # Number of connected lines between read a and b
+                else:
+                    E[e_curr] = 1
+    E_Filtered = {kv[0]: kv[1] for kv in E.items() if kv[1] >= num_shared_reads}
+    del E
     
     print('Start initializing graph...')
     # Initialize graph

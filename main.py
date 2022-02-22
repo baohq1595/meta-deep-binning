@@ -38,7 +38,7 @@ AE_WEIGHTS = None
 # Dir contains raw fasta data
 DATASET_DIR = GEN_DATA_DIR
 # Specifc dataset or all of them
-DATASET_NAME = 'taxo_amd'
+DATASET_NAME = 'unified_label_toy_cami_hmp'
 
 # MODEL_DIR = f'/content/drive/My Drive/DL/{ARCH}/{DATE}/models'
 # LOG_DIR = f'/content/drive/My Drive/DL/{ARCH}/{DATE}/logs/'
@@ -109,6 +109,7 @@ for dataset in raw_datasets:
     is_deserialize = os.path.exists(os.path.join(processed_dir, dataset_name + '.json'))
     # n_clusters = n_clusters_mapping[dataset_name]
     n_clusters = 5
+    num_shared_read = 5
     
     if verbose:
         # Read dataset
