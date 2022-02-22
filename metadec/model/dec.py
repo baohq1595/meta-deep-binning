@@ -1,12 +1,12 @@
 import time, os
 import numpy as np
-import keras.backend as K
-from keras.engine.topology import Layer, InputSpec
-from keras.layers import Dense, Input, Dropout
-from keras.models import Model
-from keras.optimizers import SGD, Adam
-from keras import callbacks
-from keras.initializers import VarianceScaling
+import tensorflow.keras.backend as K
+from tensorflow.keras.layers import Layer, InputSpec
+from tensorflow.keras.layers import Dense, Input, Dropout
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import SGD, Adam
+from tensorflow.keras import callbacks
+from tensorflow.keras.initializers import VarianceScaling
 from sklearn.cluster import KMeans
 
 from metadec.model.keras_callback import MetricsLog
