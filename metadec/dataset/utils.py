@@ -266,6 +266,44 @@ def build_overlap_graph(reads, labels, qmer_length, num_shared_reads):
     
     return G
 
+def dump_hashtable(lmers_dict, parts, pickle_dir, comp):
+    from compress_pickle import dump as dump_pickle
+    batch_size = len(lmers_dict) // parts
+    offset = 0
+    pickle_paths = []
+    for i in range(parts):
+        if i < parts - 1:
+            cur_dict = {k:lmers_dict[k] for k in list(lmers_dict.keys())[offset:offset + batch_size]}
+            offset += batch_size
+        else:
+            cur_dict = {k:lmers_dict[k] for k in list(lmers_dict.keys())[offset:]}
+
+        pickle_path = os.path.join(pickle_dir, f'hash_pkl_{i}.dat')
+        pickle_paths.append(pickle_path)
+        with open(pickle_path, 'wb') as f:
+            dump_pickle(cur_dict, f, compression=comp, set_default_extension=False)
+    
+    return pickle_paths
+
+def dump_edge_table(edge_dict, parts, pickle_dir, comp):
+    from compress_pickle import dump as dump_pickle
+    batch_size = len(edge_dict) // parts
+    offset = 0
+    pickle_paths = []
+    for i in range(parts):
+        if i < parts - 1:
+            cur_dict = {k:edge_dict[k] for k in list(edge_dict.keys())[offset:offset + batch_size]}
+            offset += batch_size
+        else:
+            cur_dict = {k:edge_dict[k] for k in list(edge_dict.keys())[offset:]}
+
+        pickle_path = os.path.join(pickle_dir, f'edge_pkl_{i}.dat')
+        pickle_paths.append(pickle_path)
+        with open(pickle_path, 'wb') as f:
+            dump_pickle(cur_dict, f, compression=comp, set_default_extension=False)
+    
+    return pickle_paths
+
 def build_overlap_graph_low_mem(reads, labels, qmer_length, num_shared_reads, parts=100, comp='gzip'):
     '''
     Build overlapping graph
@@ -273,7 +311,7 @@ def build_overlap_graph_low_mem(reads, labels, qmer_length, num_shared_reads, pa
     from compress_pickle import dump, load
     import glob
 
-    pickle_dir = 'temp/pickle'
+    pickle_dir = 'temp/pickle/hashtable'
     if not os.path.exists(pickle_dir):
         os.makedirs(pickle_dir)
 
@@ -285,46 +323,42 @@ def build_overlap_graph_low_mem(reads, labels, qmer_length, num_shared_reads, pa
         lmers_dict = build_hash_table(reads, qmer_length)
 
         # pickle and compress
-        batch_size = len(lmers_dict) // parts
-        offset = 0
-        pickle_paths = []
-        for i in range(parts):
-            if i < parts - 1:
-                cur_dict = {k:lmers_dict[k] for k in list(lmers_dict.keys())[offset:offset + batch_size]}
-                offset += batch_size
-            else:
-                cur_dict = {k:lmers_dict[k] for k in list(lmers_dict.keys())[offset:]}
-
-            pickle_path = os.path.join(pickle_dir, f'hash_pkl_{i}.dat')
-            pickle_paths.append(pickle_path)
-            with open(pickle_path, 'wb') as f:
-                dump(cur_dict, f, compression=comp, set_default_extension=False)
+        pickle_paths = dump_hashtable(lmers_dict, parts, pickle_dir, comp)
     
-<<<<<<< HEAD
-    del lmers_dict, cur_dict
-=======
         del lmers_dict
->>>>>>> 0a5f1939c7c4c70abce181daaa2d2a8ff73a8e93
         
     # Building edges
     print('Finding overlapped lmer...')
+    pickle_edge_dir = 'temp/pickle/edge'
+    if not os.path.exists(pickle_edge_dir):
+        os.makedirs(pickle_edge_dir)
+
+    pickle_edge_paths = glob.glob(pickle_edge_dir + '/*.dat')
 
     E=dict()
-    for pickle_path in pickle_paths:
-        lmers_dict = load(pickle_path, compression=comp, set_default_extension=False)
-        for lmer in lmers_dict:
-            for e in it.combinations(lmers_dict[lmer], 2):
-                if e[0]!=e[1]:
-                    e_curr=(e[0],e[1])
-                else:
-                    continue
-                if e_curr in E:
-                    E[e_curr] += 1 # Number of connected lines between read a and b
-                else:
-                    E[e_curr] = 1
-    E_Filtered = {kv[0]: kv[1] for kv in E.items() if kv[1] >= num_shared_reads}
-    del E
-    
+    # If not found enough pickle files, then build and dump edge dict
+    if len(pickle_edge_paths) < parts:
+        # Load hash table pickle files to build edge dict
+        for pickle_path in pickle_paths:
+            lmers_dict = load(pickle_path, compression=comp, set_default_extension=False)
+            for lmer in lmers_dict:
+                for e in it.combinations(lmers_dict[lmer], 2):
+                    if e[0]!=e[1]:
+                        e_curr=(e[0],e[1])
+                    else:
+                        continue
+                    if e_curr in E:
+                        E[e_curr] += 1 # Number of connected lines between read a and b
+                    else:
+                        E[e_curr] = 1
+        E_Filtered = {kv[0]: kv[1] for kv in E.items() if kv[1] >= num_shared_reads}
+        del E
+        # dump edge dict
+        print('Serialize E_Filtered to pickle...')
+        pickle_edge_paths = dump_edge_table(E_Filtered, parts, pickle_edge_dir, comp)
+        del E_Filtered
+
+    # Delete to save space
     print('Start initializing graph...')
     # Initialize graph
     G = nx.Graph()
@@ -336,8 +370,10 @@ def build_overlap_graph_low_mem(reads, labels, qmer_length, num_shared_reads, pa
 
     print('Add edges!!!')
     # Add edges to graph
-    for kv in E_Filtered.items():
-        G.add_edge(kv[0][0], kv[0][1], weight=kv[1])
+    for pickle_edge_path in pickle_edge_paths:
+        E_Filtered = load(pickle_edge_path, compression=comp, set_default_extension=False)
+        for kv in E_Filtered.items():
+            G.add_edge(kv[0][0], kv[0][1], weight=kv[1])
 
     # Finishing....
     print('Finishing build graph.')
