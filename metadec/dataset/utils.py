@@ -271,33 +271,36 @@ def build_overlap_graph_low_mem(reads, labels, qmer_length, num_shared_reads, pa
     Build overlapping graph
     '''
     from compress_pickle import dump, load
+    import glob
 
-    # Create hash table with q-mers are keys
-    print('Building hashtable...')
-    lmers_dict = build_hash_table(reads, qmer_length)
-
-    # pickle and compress
-    chunks = split_dict(lmers_dict, parts)
     pickle_dir = 'temp/pickle'
     if not os.path.exists(pickle_dir):
         os.makedirs(pickle_dir)
 
-    batch_size = len(lmers_dict) // parts
-    offset = 0
-    pickle_paths = []
-    for i in range(chunks):
-        if i < chunks - 1:
-            cur_dict = {k:lmers_dict[k] for k in list(lmers_dict.keys())[offset:offset + batch_size]}
-            offset += batch_size
-        else:
-            cur_dict = {k:lmers_dict[k] for k in list(lmers_dict.keys())[offset:]}
+    pickle_paths = glob.glob(pickle_dir + '/*.dat')
 
-        pickle_path = os.path.join(pickle_dir, f'hash_pkl_{i}.dat')
-        pickle_paths.append(pickle_path)
-        with open(pickle_path, 'wb') as f:
-            dump(cur_dict, f, compression=comp, set_default_extension=False)
+    if len(pickle_paths) < parts:
+        # Create hash table with q-mers are keys
+        print('Building hashtable...')
+        lmers_dict = build_hash_table(reads, qmer_length)
+
+        # pickle and compress
+        batch_size = len(lmers_dict) // parts
+        offset = 0
+        pickle_paths = []
+        for i in range(parts):
+            if i < parts - 1:
+                cur_dict = {k:lmers_dict[k] for k in list(lmers_dict.keys())[offset:offset + batch_size]}
+                offset += batch_size
+            else:
+                cur_dict = {k:lmers_dict[k] for k in list(lmers_dict.keys())[offset:]}
+
+            pickle_path = os.path.join(pickle_dir, f'hash_pkl_{i}.dat')
+            pickle_paths.append(pickle_path)
+            with open(pickle_path, 'wb') as f:
+                dump(cur_dict, f, compression=comp, set_default_extension=False)
     
-    del lmers_dict
+        del lmers_dict
         
     # Building edges
     print('Finding overlapped lmer...')
