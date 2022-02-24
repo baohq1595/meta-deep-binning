@@ -296,7 +296,7 @@ def build_overlap_graph_low_mem(reads, labels, qmer_length, num_shared_reads, pa
         with open(pickle_path, 'wb') as f:
             dump(cur_dict, f, compression=comp, set_default_extension=False)
     
-    del lmers_dict
+    del lmers_dict, cur_dict
         
     # Building edges
     print('Finding overlapped lmer...')

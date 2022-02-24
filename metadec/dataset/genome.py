@@ -38,7 +38,8 @@ class SimGenomeDataset():
             self.groups, self.seeds, self.label2idx = self.deserialize_data(graph_file, self.reads)
         else:
             # Build overlapping (reads) graph
-            graph = build_overlap_graph(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads)
+            # graph = build_overlap_graph(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads)
+            graph = build_overlap_graph_low_mem(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads, parts=100, comp='gzip')
             # Partitioning graph...
             self.groups, self.seeds = metis_partition_groups_seeds(graph, maximum_seed_size)
 
