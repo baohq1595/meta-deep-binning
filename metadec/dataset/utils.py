@@ -13,8 +13,11 @@ from gensim import corpora
 from gensim.models.tfidfmodel import TfidfModel
 
 import pickle
-import os, sys
-import math
+import os
+from stellargraph import StellarGraph
+import pandas as pd
+import stellargraph
+from torch import long
 
 def load_amd_reads(filename):
     with open(filename, 'r') as f:
@@ -192,7 +195,7 @@ def create_corpus(dictionary: corpora.Dictionary, documents,
     return corpus
 
 def compute_kmer_dist(dictionary, corpus, groups, seeds, only_seed=True):
-    print('Start computing feature')
+    # print('Start computing feature')
     corpus_m = gensim.matutils.corpus2dense(corpus, len(dictionary.keys())).T
     res = []
     if only_seed:
@@ -325,7 +328,7 @@ def build_overlap_graph_low_mem(reads, labels, qmer_length, num_shared_reads, pa
         # pickle and compress
         pickle_paths = dump_hashtable(lmers_dict, parts, pickle_dir, comp)
     
-        del lmers_dict
+        lmers_dict = None
         
     # Building edges
     print('Finding overlapped lmer...')
@@ -352,13 +355,12 @@ def build_overlap_graph_low_mem(reads, labels, qmer_length, num_shared_reads, pa
                     else:
                         E[e_curr] = 1
         E_Filtered = {kv[0]: kv[1] for kv in E.items() if kv[1] >= num_shared_reads}
-        del E
+        E = None
         # dump edge dict
         print('Serialize E_Filtered to pickle...')
         pickle_edge_paths = dump_edge_table(E_Filtered, parts, pickle_edge_dir, comp)
-        del E_Filtered
+        E_Filtered = None
 
-    # Delete to save space
     print('Start initializing graph...')
     # Initialize graph
     G = nx.Graph()
@@ -370,11 +372,80 @@ def build_overlap_graph_low_mem(reads, labels, qmer_length, num_shared_reads, pa
 
     print('Add edges!!!')
     # Add edges to graph
-    for pickle_edge_path in pickle_edge_paths:
+    for i, pickle_edge_path in enumerate(pickle_edge_paths):
         E_Filtered = load(pickle_edge_path, compression=comp, set_default_extension=False)
+        print(f'Loaded {i+1} dict with {len(E_Filtered)} edges.')
+
         for kv in E_Filtered.items():
             G.add_edge(kv[0][0], kv[0][1], weight=kv[1])
 
+    # Finishing....
+    print('Finishing build graph.')
+    
+    return G
+
+def create_dataframe_for_graph(edge_dict, labels):
+    square_weighted_edges = pd.DataFrame(
+    {
+        "source": [e[0] for e in edge_dict.keys()],
+        "target": [e[1] for e in edge_dict.keys()],
+        "weight": [w for w in edge_dict.values()],
+    })
+
+    square_node_data = pd.DataFrame(
+        {"label": [l for l in labels]},
+        index=[i for i in range(len(labels))]
+    )
+
+    stellar_graph = StellarGraph(square_node_data, square_weighted_edges)
+    print(stellar_graph.info())
+    return stellar_graph
+
+def build_overlap_stellar_graph_low_mem(reads, labels, qmer_length, num_shared_reads, parts=100, comp='gzip'):
+    '''
+    Build overlapping graph
+    '''
+    from compress_pickle import dump, load
+    import glob
+
+    pickle_dir = 'temp/pickle/hashtable'
+    if not os.path.exists(pickle_dir):
+        os.makedirs(pickle_dir)
+
+    pickle_paths = glob.glob(pickle_dir + '/*.dat')
+
+    if len(pickle_paths) < parts:
+        # Create hash table with q-mers are keys
+        print('Building hashtable...')
+        lmers_dict = build_hash_table(reads, qmer_length)
+
+        # pickle and compress
+        pickle_paths = dump_hashtable(lmers_dict, parts, pickle_dir, comp)
+    
+        lmers_dict = None
+        
+    # Building edges
+    print('Finding overlapped lmer...')
+    E=dict()
+    # Load hash table pickle files to build edge dict
+    for pickle_path in pickle_paths:
+        lmers_dict = load(pickle_path, compression=comp, set_default_extension=False)
+        for lmer in lmers_dict:
+            for e in it.combinations(lmers_dict[lmer], 2):
+                if e[0]!=e[1]:
+                    e_curr=(e[0],e[1])
+                else:
+                    continue
+                if e_curr in E:
+                    E[e_curr] += 1 # Number of connected lines between read a and b
+                else:
+                    E[e_curr] = 1
+    E_Filtered = {kv[0]: kv[1] for kv in E.items() if kv[1] >= num_shared_reads}
+    E = None
+
+    print('Start initializing stellar graph...')
+    G = create_dataframe_for_graph(E_Filtered, labels)
+    
     # Finishing....
     print('Finishing build graph.')
     
@@ -406,86 +477,11 @@ def split_dict(ori_dict, chunks=2):
 
     return splitted_dict
 
-def build_overlap_graph_v2(reads, labels, qmer_length, num_shared_reads):
-    '''
-    Build overlapping graph
-    '''
-    if not os.path.exists('temp'):
-        os.makedirs('temp')
-
-    for i, r in enumerate(reads):
-        reads[i].replace('N', '')
-
-    # Create hash table with q-mers are keys
-    lmers_dict=dict()
-    for idx, r in enumerate(reads):
-        for j in range(0,len(r)-qmer_length+1):
-            lmer = r[j:j+qmer_length]
-            if lmer in lmers_dict:
-                lmers_dict[lmer] += [idx]
-            else:
-                lmers_dict[lmer] = [idx]
-
-    # Building edges
-    # E=dict()
-    chunks = len(lmers_dict)
-    splitted_dicts = split_dict(lmers_dict, chunks)
-    print('Building...')
-    for i, sub_lmers_dict in enumerate(splitted_dicts):
-        E=dict()
-        count = 0
-        for lmer in sub_lmers_dict:
-            for e in it.combinations(sub_lmers_dict[lmer],2):
-                if e[0]!=e[1]:
-                    e_curr=(e[0],e[1])
-                else:
-                    continue
-                if e_curr in E:
-                    E[e_curr] += 1 # Number of connected lines between read a and b
-                else:
-                    E[e_curr] = 1
-                count += 1
-            
-        with open(os.path.join('temp', f'chunk{i}'), 'wb') as f:
-            pickle.dump(E, f)
-        del E
-        splitted_dicts[i] = None
-
-    print('Filtering...')
-
-    E = dict()
-    for i in range(chunks):
-        with open(os.path.join('temp', f'chunk{i}'), 'rb') as f:
-            sub_E = pickle.load(f)
-
-        for kv in sub_E.items():
-            if kv[0] in E:
-                E[kv[0]] += sub_E[kv[0]]
-            else:
-                E[kv[0]] = 1
-    
-    print('Finish building edges.')
-        
-    E_Filtered = {kv[0]: kv[1] for kv in E.items() if kv[1] >= num_shared_reads}
-
-    print('Start initializing graph')
-    # Initialize graph
-    G = nx.Graph()
-    
-    # Add nodes to graph
-    color_map = {0: 'red', 1: 'green', 2: 'blue', 3: 'yellow', 4: 'darkcyan', 5: 'violet'}
-    for i in range(0, len(labels)):
-        G.add_node(i, label=labels[i])
-
-    # Add edges to graph
-    for kv in E_Filtered.items():
-        G.add_edge(kv[0][0], kv[0][1], weight=kv[1])
-
-    # Finishing....
-    
-    return G
 
 def metis_partition_groups_seeds(G, maximum_seed_size):
+    print('Partitioning...')
+    if type(G) is StellarGraph:
+        G = nx.Graph(G.to_networkx())
     CC = [cc for cc in nx.connected_components(G)]
     GL = []
     for subV in CC:
@@ -510,6 +506,11 @@ def metis_partition_groups_seeds(G, maximum_seed_size):
         pG = nx.subgraph( G, p )
         SL += [nx.maximal_independent_set( pG )]
 
+    def long_int2int(xs):
+        return [np.uint32(x).item() for x in xs]
+
+    GL = [long_int2int(l) for l in GL]
+    SL = [long_int2int(l) for l in SL]
     return GL, SL
 
 if __name__ == "__main__":
