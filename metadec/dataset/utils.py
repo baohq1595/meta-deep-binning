@@ -392,13 +392,16 @@ def create_dataframe_for_graph(edge_dict, labels):
         "weight": [w for w in edge_dict.values()],
     })
 
+    print(square_weighted_edges['source'].max())
+    print(square_weighted_edges['target'].max())
+
     square_node_data = pd.DataFrame(
         {"label": [l for l in labels]},
         index=[i for i in range(len(labels))]
     )
 
     stellar_graph = StellarGraph(square_node_data, square_weighted_edges)
-    print(stellar_graph.info())
+
     return stellar_graph
 
 def build_overlap_stellar_graph_low_mem(reads, labels, qmer_length, num_shared_reads, parts=100, comp='gzip'):
@@ -482,6 +485,7 @@ def metis_partition_groups_seeds(G, maximum_seed_size):
     print('Partitioning...')
     if type(G) is StellarGraph:
         G = nx.Graph(G.to_networkx())
+
     CC = [cc for cc in nx.connected_components(G)]
     GL = []
     for subV in CC:
@@ -505,6 +509,54 @@ def metis_partition_groups_seeds(G, maximum_seed_size):
     for p in GL:
         pG = nx.subgraph( G, p )
         SL += [nx.maximal_independent_set( pG )]
+
+    def long_int2int(xs):
+        return [np.uint32(x).item() for x in xs]
+
+    GL = [long_int2int(l) for l in GL]
+    SL = [long_int2int(l) for l in SL]
+    return GL, SL
+
+def metis_partition_groups_seeds_stellargraph(G, maximum_seed_size):
+    import metis
+    print('Partitioning stellar graph...')
+
+    # First, acquire connected components
+    CC = G.connected_components() # iterator object
+    GL = []
+    for subV in CC:
+        if len(subV) > maximum_seed_size:
+            # use metis to split the graph
+            subG = G.subgraph(subV)
+            nparts = int( len(subV)/maximum_seed_size + 1 )
+            lil_adj = subG.to_adjacency_matrix(weighted=False).tolil()
+            adjlist = [tuple(neighbours) for neighbours in lil_adj.rows]
+
+            edgecuts, parts = metis.part_graph(adjlist, nparts=nparts)
+
+            parts = np.array(parts)
+            clusters = []
+            node_ids = np.array(subG.nodes())
+            cluster_ids = np.unique(parts)
+            for cluster_id in cluster_ids:
+                mask = np.where(parts == cluster_id)
+                clusters.append(node_ids[mask].tolist())
+            
+            parts = clusters
+            # only add connected components
+            for p in parts:
+                pG = G.subgraph(p)
+                GL += [list(cc) for cc in pG.connected_components()]
+            
+            # add to group list
+            #GL += parts
+        else:
+            GL += [list(subV)]
+
+    SL = []
+    for p in GL:
+        pG = G.subgraph(p)
+        SL += [nx.maximal_independent_set(pG.to_networkx())]
 
     def long_int2int(xs):
         return [np.uint32(x).item() for x in xs]

@@ -40,9 +40,10 @@ class SimGenomeDataset():
             # Build overlapping (reads) graph
             # graph = build_overlap_graph(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads)
             # graph = build_overlap_graph_low_mem(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads, parts=20, comp='gzip')
-            graph = build_overlap_stellar_graph_low_mem(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads, parts=20, comp='gzip')
+            graph = build_overlap_stellar_graph_low_mem(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads, parts=2, comp='gzip')
             # Partitioning graph...
-            self.groups, self.seeds = metis_partition_groups_seeds(graph, maximum_seed_size)
+            self.groups, self.seeds = metis_partition_groups_seeds_stellargraph(graph, maximum_seed_size)
+            # self.groups, self.seeds = metis_partition_groups_seeds(graph, maximum_seed_size)
 
         # with open(os.path.join('temp', 'corpus'), 'rb') as f:
         #     corpus = pickle.load(f)
@@ -148,7 +149,7 @@ class AMDGenomeDataset():
             # graph = build_overlap_graph_low_mem(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads, parts=20, comp='gzip')
             graph = build_overlap_stellar_graph_low_mem(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads, parts=20, comp='gzip')
             # Partitioning graph...
-            self.groups, self.seeds = metis_partition_groups_seeds(graph, maximum_seed_size)
+            self.groups, self.seeds = metis_partition_groups_seeds_stellargraph(graph, maximum_seed_size)
                 
         # Computing features...
         with open(os.path.join('temp', 'corpus'), 'rb') as f:
