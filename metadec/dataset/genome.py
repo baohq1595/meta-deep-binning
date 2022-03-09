@@ -1,9 +1,11 @@
+import imp
 import json
 import os, pickle
 from sklearn.preprocessing import OneHotEncoder, normalize, StandardScaler
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 
 from metadec.dataset.utils import *
+from metadec.utils.utils import read_bimeta_cache
 
 class SimGenomeDataset():
     '''
@@ -13,7 +15,8 @@ class SimGenomeDataset():
     '''
     def __init__(self, fna_file, kmers: list, qmers, num_shared_reads,
                      maximum_seed_size=5000, only_seed=False, is_normalize=True,
-                     graph_file=None, is_serialize=False, is_deserialize=False, is_tfidf=False):
+                     graph_file=None, is_serialize=False, is_deserialize=False, is_tfidf=False,
+                     serialize_from_bimeta=False):
         '''
         Args:
             kmers: a list of kmer values. 
@@ -22,6 +25,7 @@ class SimGenomeDataset():
             graph_file: calculated groups and seeds (json).
         '''
         # Read fasta dataset
+        self.serialize_from_bimeta = serialize_from_bimeta
         self.reads, self.labels, self.label2idx = load_meta_reads(fna_file, type='fasta')
 
         # Creating document from reads...
@@ -35,7 +39,7 @@ class SimGenomeDataset():
 
         if is_deserialize:
             # Deserializing data...
-            self.groups, self.seeds, self.label2idx = self.deserialize_data(graph_file, self.reads)
+            self.groups, self.seeds, self.label2idx = self.deserialize_data(graph_file)
         else:
             # Build overlapping (reads) graph
             # graph = build_overlap_graph(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads)
@@ -84,16 +88,20 @@ class SimGenomeDataset():
         
         return graph_file
     
-    def deserialize_data(self, graph_file, reads):
+    def deserialize_data(self, graph_file):
         '''
         Read groups and seeds from file
         '''
-        with open(graph_file, 'r') as fg:
-            data = json.load(fg)
+        label2idx = {}
+        if self.serialize_from_bimeta:
+            groups, seeds = read_bimeta_cache(graph_file)
+        else:
+            with open(graph_file, 'r') as fg:
+                data = json.load(fg)
 
-        groups = data['groups']
-        seeds = data['seeds']
-        label2idx = data['label2idx']
+            groups = data['groups']
+            seeds = data['seeds']
+            label2idx = data['label2idx']
 
         return groups, seeds, label2idx
 
@@ -143,7 +151,7 @@ class AMDGenomeDataset():
 
         if is_deserialize:
             # Deserializing data...
-            self.groups, self.seeds, self.label2idx = self.deserialize_data(graph_file, self.reads)
+            self.groups, self.seeds, self.label2idx = self.deserialize_data(graph_file)
         else:
             # Build overlapping (reads) graph
             # graph = build_overlap_graph_low_mem(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads, parts=20, comp='gzip')
@@ -189,15 +197,19 @@ class AMDGenomeDataset():
         
         return graph_file
     
-    def deserialize_data(self, graph_file, reads):
+    def deserialize_data(self, graph_file):
         '''
         Read groups and seeds from file
         '''
-        with open(graph_file, 'r') as fg:
-            data = json.load(fg)
+        label2idx = {}
+        if self.serialize_from_bimeta:
+            groups, seeds = read_bimeta_cache(graph_file)
+        else:
+            with open(graph_file, 'r') as fg:
+                data = json.load(fg)
 
-        groups = data['groups']
-        seeds = data['seeds']
-        label2idx = data['label2idx']
+            groups = data['groups']
+            seeds = data['seeds']
+            label2idx = data['label2idx']
 
         return groups, seeds, label2idx

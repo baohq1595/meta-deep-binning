@@ -65,3 +65,21 @@ def export_clustering_results(raw_reads, groups, n_clusters, y_pred, save_path):
 
     print(f'Saved result file at {save_path}')
 
+def read_bimeta_cache(filename):
+    def parse_file_helper(filename):
+        ids_list = []
+        with open(filename, 'r') as f:
+            lines = f.readlines()
+            lines = [line.strip() for line in lines]
+
+            for line in lines:
+                ids = map(lambda x: int(x), line.split(','))
+                ids_list.append(ids)
+        
+        return ids_list
+
+    groups = parse_file_helper(filename)
+    seeds = parse_file_helper(filename.replace('group', 'seed'))
+    
+    return groups, seeds, {}
+

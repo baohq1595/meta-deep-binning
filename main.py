@@ -17,7 +17,7 @@ sys.path.append('.')
 
 
 RESULT_DIR = 'results'
-GEN_DATA_DIR = 'data/real'
+GEN_DATA_DIR = 'data/simulated'
 
 # Versioning each runs
 ARCH = 'dec_genomics'
@@ -38,7 +38,7 @@ AE_WEIGHTS = None
 # Dir contains raw fasta data
 DATASET_DIR = GEN_DATA_DIR
 # Specifc dataset or all of them
-DATASET_NAME = 'unified_label_toy_cami_hmp'
+DATASET_NAME = 'S1'
 
 # MODEL_DIR = f'/content/drive/My Drive/DL/{ARCH}/{DATE}/models'
 # LOG_DIR = f'/content/drive/My Drive/DL/{ARCH}/{DATE}/logs/'
