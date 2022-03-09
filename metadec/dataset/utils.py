@@ -522,8 +522,10 @@ def metis_partition_groups_seeds_stellargraph(G, maximum_seed_size):
     print('Partitioning stellar graph...')
 
     # First, acquire connected components
-    CC = G.connected_components() # iterator object
+    # CC = G.connected_components() # iterator object
+    CC = connected_components(G) # iterator object
     GL = []
+
     for subV in CC:
         if len(subV) > maximum_seed_size:
             # use metis to split the graph
@@ -564,6 +566,31 @@ def metis_partition_groups_seeds_stellargraph(G, maximum_seed_size):
     GL = [long_int2int(l) for l in GL]
     SL = [long_int2int(l) for l in SL]
     return GL, SL
+
+def plain_bfs(adj, node):
+    seen = set()
+    nextlevel = {node}
+    while nextlevel:
+        thislevel = nextlevel
+        nextlevel = set()
+        for v in thislevel:
+            if v not in seen:
+                seen.add(v)
+                nextlevel.update(adj[v])
+    
+    return seen
+
+def connected_components(G):
+    nodes = G.nodes()
+    lil_adj = G.to_adjacency_matrix(weighted=False).tolil()
+    adjlist = [tuple(neighbours) for neighbours in lil_adj.rows]
+    seen = set()
+    for v in nodes:
+        if v not in seen:
+            c = plain_bfs(adjlist, v)
+            seen.update(c)
+            yield c
+
 
 if __name__ == "__main__":
     # amd_file = 'E:\\workspace\\python\\metagenomics-deep-binning\\data\\amd\\Amdfull\\parsed\\blasted_amd.fna'
