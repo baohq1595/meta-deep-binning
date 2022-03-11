@@ -12,7 +12,8 @@ def load_genomics(dataset_name,
                     is_normalize=False,
                     only_seed=False,
                     is_tfidf=False,
-                    is_amd=False):
+                    is_amd=False,
+                    serialize_from_bimeta=False):
     '''
     Loads fna file.
     Args:
@@ -37,7 +38,8 @@ def load_genomics(dataset_name,
             is_serialize=is_serialize,
             is_deserialize=is_deserialize,
             is_normalize=is_normalize,
-            is_tfidf=is_tfidf)
+            is_tfidf=is_tfidf,
+            serialize_from_bimeta=serialize_from_bimeta)
     else:
         genomics_dataset = AMDGenomeDataset(
             dataset_name, kmers, lmer,
@@ -48,7 +50,8 @@ def load_genomics(dataset_name,
             is_serialize=is_serialize,
             is_deserialize=is_deserialize,
             is_normalize=is_normalize,
-            is_tfidf=is_tfidf)
+            is_tfidf=is_tfidf,
+            serialize_from_bimeta=serialize_from_bimeta)
 
     return genomics_dataset
 
@@ -65,21 +68,4 @@ def export_clustering_results(raw_reads, groups, n_clusters, y_pred, save_path):
 
     print(f'Saved result file at {save_path}')
 
-def read_bimeta_cache(filename):
-    def parse_file_helper(filename):
-        ids_list = []
-        with open(filename, 'r') as f:
-            lines = f.readlines()
-            lines = [line.strip() for line in lines]
-
-            for line in lines:
-                ids = map(lambda x: int(x), line.split(','))
-                ids_list.append(ids)
-        
-        return ids_list
-
-    groups = parse_file_helper(filename)
-    seeds = parse_file_helper(filename.replace('group', 'seed'))
-    
-    return groups, seeds, {}
 

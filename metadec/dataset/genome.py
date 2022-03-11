@@ -5,7 +5,38 @@ from sklearn.preprocessing import OneHotEncoder, normalize, StandardScaler
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 
 from metadec.dataset.utils import *
-from metadec.utils.utils import read_bimeta_cache
+
+def read_bimeta_cache(filename):
+    def parse_file_helper(filename):
+        ids_list = []
+        i = 0
+        with open(filename, 'r') as f:
+            lines = f.readlines()
+            lines = [line.strip() for line in lines]
+            lines = [line for line in lines if line != '']
+
+            for line in lines:
+                # print(line.split(','))
+                # exit(1)
+                try:
+                    ids = list(map(lambda x: int(x)-1, line.split(',')))
+                    i += len(ids)
+                    ids_list.append(ids)
+                except:
+                    print(line)
+
+        print(f'Read file {filename}. Found {i} ids.')        
+        return ids_list
+
+    groups = parse_file_helper(filename)
+    seeds = parse_file_helper(filename.replace('group', 'seed'))
+
+    # for i in range(len(groups)):
+    #     groups[i].extend(seeds[i])
+    print(len(groups))
+    print(len(seeds))
+    
+    return groups, seeds, {}
 
 class SimGenomeDataset():
     '''
@@ -92,9 +123,8 @@ class SimGenomeDataset():
         '''
         Read groups and seeds from file
         '''
-        label2idx = {}
         if self.serialize_from_bimeta:
-            groups, seeds = read_bimeta_cache(graph_file)
+            groups, seeds, label2idx = read_bimeta_cache(graph_file)
         else:
             with open(graph_file, 'r') as fg:
                 data = json.load(fg)
@@ -114,7 +144,8 @@ class AMDGenomeDataset():
     '''
     def __init__(self, fna_file, kmers: list, qmers, num_shared_reads,
                      maximum_seed_size=5000, only_seed=False, is_normalize=True,
-                     graph_file=None, is_serialize=False, is_deserialize=False, is_tfidf=False):
+                     graph_file=None, is_serialize=False, is_deserialize=False, is_tfidf=False,
+                     serialize_from_bimeta=False):
         '''
         Args:
             kmers: a list of kmer values. 
@@ -123,6 +154,7 @@ class AMDGenomeDataset():
             graph_file: calculated groups and seeds (json).
         '''
         # Read fasta dataset
+        self.serialize_from_bimeta = serialize_from_bimeta
         self.reads, self.labels, self.label2idx = load_amd_reads(fna_file)
 
         # Creating document from reads...
@@ -201,9 +233,8 @@ class AMDGenomeDataset():
         '''
         Read groups and seeds from file
         '''
-        label2idx = {}
         if self.serialize_from_bimeta:
-            groups, seeds = read_bimeta_cache(graph_file)
+            groups, seeds, label2idx = read_bimeta_cache(graph_file)
         else:
             with open(graph_file, 'r') as fg:
                 data = json.load(fg)
