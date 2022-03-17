@@ -12,7 +12,8 @@ def load_genomics(dataset_name,
                     is_normalize=False,
                     only_seed=False,
                     is_tfidf=False,
-                    is_amd=False):
+                    is_amd=False,
+                    serialize_from_bimeta=False):
     '''
     Loads fna file.
     Args:
@@ -37,7 +38,8 @@ def load_genomics(dataset_name,
             is_serialize=is_serialize,
             is_deserialize=is_deserialize,
             is_normalize=is_normalize,
-            is_tfidf=is_tfidf)
+            is_tfidf=is_tfidf,
+            serialize_from_bimeta=serialize_from_bimeta)
     else:
         genomics_dataset = AMDGenomeDataset(
             dataset_name, kmers, lmer,
@@ -48,7 +50,8 @@ def load_genomics(dataset_name,
             is_serialize=is_serialize,
             is_deserialize=is_deserialize,
             is_normalize=is_normalize,
-            is_tfidf=is_tfidf)
+            is_tfidf=is_tfidf,
+            serialize_from_bimeta=serialize_from_bimeta)
 
     return genomics_dataset
 
