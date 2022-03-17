@@ -1,11 +1,12 @@
-python main.py -d data/simulated/raw \
-            -n S1 \
+python main.py -d "data/real/raw/" \
+            -n unified_labeled_toy_hmp_cami \
             -l 30 \
             --n_shared_read 5 \
-            --seed_size 5000 \
-            --n_clusters 2 \
+            --seed_size 30 \
+            --n_clusters 35 \
             --result_dir result \
             --load_cache \
             --cache \
+            --cache_path "data/real/processed/unified_label_toy_cami_hmp.fna.groups.txt" \
             --is_amd \
-            --phase1_only
+            --from_bimeta

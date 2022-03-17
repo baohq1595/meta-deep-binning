@@ -25,7 +25,7 @@ import tqdm
 import json
 from collections import defaultdict
 
-from sklearn.utils.linear_assignment_ import linear_assignment
+from scipy.optimize import linear_sum_assignment as linear_assignment
 from sklearn.cluster import KMeans
 
 from sklearn.decomposition import PCA

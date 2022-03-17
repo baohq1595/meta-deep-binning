@@ -19,7 +19,6 @@ import os
 from stellargraph import StellarGraph
 import pandas as pd
 import stellargraph
-from torch import long
 
 def load_amd_reads(filename):
     with open(filename, 'r') as f:

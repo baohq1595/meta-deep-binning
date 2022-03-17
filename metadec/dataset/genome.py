@@ -104,6 +104,9 @@ class SimGenomeDataset():
             # Normalizing...
             scaler = StandardScaler()
             self.kmer_features = scaler.fit_transform(self.kmer_features)
+
+        with open(os.path.join('temp', 'kmer_features'), 'wb') as f:
+            pickle.dump(self.kmer_features, f)
     
     def serialize_data(self, groups, seeds, label2idx, graph_file):
         '''
@@ -114,6 +117,9 @@ class SimGenomeDataset():
             'seeds': seeds,
             'label2idx': label2idx
         }
+
+        if 'json' not in graph_file:
+            graph_file = graph_file.split('.')[0] + '.json'
 
         with open(graph_file, 'w') as fg:
             json.dump(serialize_dict, fg)
@@ -216,6 +222,11 @@ class AMDGenomeDataset():
             # Normalizing...
             scaler = StandardScaler()
             self.kmer_features = scaler.fit_transform(self.kmer_features)
+        
+        with open(os.path.join('temp', 'kmer_features'), 'wb') as f:
+            pickle.dump(self.kmer_features, f)
+
+
     
     def serialize_data(self, groups, seeds, label2idx, graph_file):
         '''
@@ -226,6 +237,9 @@ class AMDGenomeDataset():
             'seeds': seeds,
             'label2idx': label2idx
         }
+
+        if 'json' not in graph_file:
+            graph_file = graph_file.split('.')[0] + '.json'
 
         with open(graph_file, 'w') as fg:
             json.dump(serialize_dict, fg)

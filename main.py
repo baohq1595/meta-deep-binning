@@ -33,7 +33,9 @@ def main():
     parser.add_argument('--phase1_only', action='store_true', help='Generate data and finish, no training')
     parser.add_argument('--load_cache', action='store_true', help='Load phase 1 from cache. Cache file path is data_dir.parent/processed')
     parser.add_argument('--cache', action='store_true', help='Cache phase 1 result. Cache file path is data_dir.parent/processed')
+    parser.add_argument('--cache_path', type=str, default='', help='path for loading cache')
     parser.add_argument('--is_amd', action='store_true', help='Turn on to False for simulated datasets, otherwise, turn off')
+    parser.add_argument('--from_bimeta', action='store_true', help='Read cache in bimeta format')
     parser.add_argument('--result_dir', type=str, default='results', help='directory for saving the resuls')
     parser.add_argument('--max_iters', type=int, default=1, help='Number of iterations for running cluster phase')
     parser.add_argument('--pretrain_epochs', type=int, default=2000, help='Number of epochs for pretraining phase 1')
@@ -79,6 +81,9 @@ def main():
         # Get some parameters
         dataset_name = os.path.basename(dataset).split('.fna')[0]
         save_dir = os.path.join(RESULT_DIR, dataset_name)
+
+        processed_path = os.path.join(processed_dir, dataset_name + '.json')
+        cache_path = processed_path if len(args.cache_path) == 0 else args.cache_path
         
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
@@ -102,8 +107,9 @@ def main():
             is_serialize=is_serialize,
             is_normalize=True,
             only_seed=ONLY_SEED,
-            graph_file=os.path.join(processed_dir, dataset_name + '.json'),
-            is_amd=is_amd
+            graph_file=cache_path,
+            is_amd=is_amd,
+            serialize_from_bimeta=args.from_bimeta
         )
 
         seed_kmer_features, labels, groups, seeds, label2idx = genome_dataset.kmer_features, genome_dataset.labels,\
@@ -149,7 +155,7 @@ def main():
         adec.cluster_optim = Adam(0.0001, epsilon=1e-8)
 
         print('Model cluster: ', adec.n_clusters)
-        wandb.init(project="adec-gene-tf-exp-monitor-time-rerun", config={
+        wandb.init(project="adec-paper-revise-cami", config={
             'name': dataset_name,
             'n_clusters': n_clusters,
             'n_shared_reads': num_shared_read,
