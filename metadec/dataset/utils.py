@@ -1,8 +1,10 @@
 from bz2 import compress
 import itertools as it
+import sys
 import numpy as np
 import networkx as nx
-import nxmetis
+from sklearn import neighbors
+# import nxmetis
 import copy
 
 from Bio import SeqIO
@@ -517,55 +519,86 @@ def metis_partition_groups_seeds(G, maximum_seed_size):
     SL = [long_int2int(l) for l in SL]
     return GL, SL
 
-def metis_partition_groups_seeds_stellargraph(G, maximum_seed_size):
-    import metis
+def metis_partition_groups_seeds_stellargraph(G: StellarGraph, maximum_seed_size, dump_graph=True):
+    # import metis
     print('Partitioning stellar graph...')
 
     # First, acquire connected components
     # CC = G.connected_components() # iterator object
-    CC = connected_components(G) # iterator object
+    CC = [cc for cc in connected_components(G)] # iterator object
     GL = []
 
-    for subV in CC:
-        if len(subV) > maximum_seed_size:
-            # use metis to split the graph
-            subG = G.subgraph(subV)
+    if dump_graph:
+        metis_result_paths = []
+        sub_graph_dir = 'temp/subgraph'
+        if not os.path.exists(sub_graph_dir):
+            os.makedirs(sub_graph_dir)
+        for i, subV in enumerate(CC):
+            print('Serializing subgraph {i}...')
+            cur_subgraph_path = os.path.join(sub_graph_dir, f'cc_{i}.graph')
+            with open(cur_subgraph_path, 'w') as f:
+                n_edges = 0
+                f.write(f'{len(subV)} xxx 001\n')
+                for v_id, v in enumerate(subV):
+                    neighbors_with_weight = G.neighbors(v, include_edge_weight=True)
+                    n_edges += len(neighbors_with_weight)
+                    list2ser = [str(int(e)) for neighbor in neighbors_with_weight for e in neighbor]
+                    list2ser = ' '.join(list2ser)
+                    f.write(list2ser)
+                    f.write('\n')
+
+                sys_call = f'sed -e \'1s/xxx/{2*n_edges}/g\' cur_subgraph_path'
+                os.system(sys_call)
+            print('Finish serializing subgraph {i}.')
             nparts = int( len(subV)/maximum_seed_size + 1 )
-            lil_adj = subG.to_adjacency_matrix(weighted=False).tolil()
-            adjlist = [tuple(neighbours) for neighbours in lil_adj.rows]
+            os.system(f'gpmetis -ptype=rb {cur_subgraph_path} {nparts}')
+            metis_result_path = f'cur_subgraph_path.part.{nparts}'
+            if os.path.exists(metis_result_path):
+                print(f'Finish partitioning subgraph {i}.')
+                metis_result_paths.append(metis_result_path)
+            else:
+                print(f'Fail to partition subgraph {i}.')
 
-            edgecuts, parts = metis.part_graph(adjlist, nparts=nparts)
+    # for subV in CC:
+    #     if len(subV) > maximum_seed_size:
+    #         # use metis to split the graph
+    #         subG = G.subgraph(subV)
+    #         nparts = int( len(subV)/maximum_seed_size + 1 )
+    #         lil_adj = subG.to_adjacency_matrix(weighted=False).tolil()
+    #         adjlist = [tuple(neighbours) for neighbours in lil_adj.rows]
 
-            parts = np.array(parts)
-            clusters = []
-            node_ids = np.array(subG.nodes())
-            cluster_ids = np.unique(parts)
-            for cluster_id in cluster_ids:
-                mask = np.where(parts == cluster_id)
-                clusters.append(node_ids[mask].tolist())
+    #         edgecuts, parts = metis.part_graph(adjlist, nparts=nparts)
+
+    #         parts = np.array(parts)
+    #         clusters = []
+    #         node_ids = np.array(subG.nodes())
+    #         cluster_ids = np.unique(parts)
+    #         for cluster_id in cluster_ids:
+    #             mask = np.where(parts == cluster_id)
+    #             clusters.append(node_ids[mask].tolist())
             
-            parts = clusters
-            # only add connected components
-            for p in parts:
-                pG = G.subgraph(p)
-                GL += [list(cc) for cc in pG.connected_components()]
+    #         parts = clusters
+    #         # only add connected components
+    #         for p in parts:
+    #             pG = G.subgraph(p)
+    #             GL += [list(cc) for cc in pG.connected_components()]
             
-            # add to group list
-            #GL += parts
-        else:
-            GL += [list(subV)]
+    #         # add to group list
+    #         #GL += parts
+    #     else:
+    #         GL += [list(subV)]
 
-    SL = []
-    for p in GL:
-        pG = G.subgraph(p)
-        SL += [nx.maximal_independent_set(pG.to_networkx())]
+    # SL = []
+    # for p in GL:
+    #     pG = G.subgraph(p)
+    #     SL += [nx.maximal_independent_set(pG.to_networkx())]
 
-    def long_int2int(xs):
-        return [np.uint32(x).item() for x in xs]
+    # def long_int2int(xs):
+    #     return [np.uint32(x).item() for x in xs]
 
-    GL = [long_int2int(l) for l in GL]
-    SL = [long_int2int(l) for l in SL]
-    return GL, SL
+    # GL = [long_int2int(l) for l in GL]
+    # SL = [long_int2int(l) for l in SL]
+    # return GL, SL
 
 def plain_bfs(adj, node):
     seen = set()

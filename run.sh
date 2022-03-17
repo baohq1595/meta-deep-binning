@@ -1,0 +1,11 @@
+python main.py -d data/simulated/raw \
+            -n S1 \
+            -l 30 \
+            --n_shared_read 5 \
+            --seed_size 5000 \
+            --n_clusters 2 \
+            --result_dir result \
+            --load_cache \
+            --cache \
+            --is_amd \
+            --phase1_only
