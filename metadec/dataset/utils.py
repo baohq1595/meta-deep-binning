@@ -1,8 +1,10 @@
 from bz2 import compress
 import itertools as it
+import sys
 import numpy as np
 import networkx as nx
-import nxmetis
+from sklearn import neighbors
+# import nxmetis
 import copy
 
 from Bio import SeqIO
@@ -509,56 +511,6 @@ def metis_partition_groups_seeds(G, maximum_seed_size):
     for p in GL:
         pG = nx.subgraph( G, p )
         SL += [nx.maximal_independent_set( pG )]
-
-    def long_int2int(xs):
-        return [np.uint32(x).item() for x in xs]
-
-    GL = [long_int2int(l) for l in GL]
-    SL = [long_int2int(l) for l in SL]
-    return GL, SL
-
-def metis_partition_groups_seeds_stellargraph_old(G, maximum_seed_size):
-    import metis
-    print('Partitioning stellar graph...')
-
-    # First, acquire connected components
-    # CC = G.connected_components() # iterator object
-    CC = connected_components(G) # iterator object
-    GL = []
-
-    for subV in CC:
-        if len(subV) > maximum_seed_size:
-            # use metis to split the graph
-            subG = G.subgraph(subV)
-            nparts = int( len(subV)/maximum_seed_size + 1 )
-            lil_adj = subG.to_adjacency_matrix(weighted=False).tolil()
-            adjlist = [tuple(neighbours) for neighbours in lil_adj.rows]
-
-            edgecuts, parts = metis.part_graph(adjlist, nparts=nparts)
-
-            parts = np.array(parts)
-            clusters = []
-            node_ids = np.array(subG.nodes())
-            cluster_ids = np.unique(parts)
-            for cluster_id in cluster_ids:
-                mask = np.where(parts == cluster_id)
-                clusters.append(node_ids[mask].tolist())
-            
-            parts = clusters
-            # only add connected components
-            for p in parts:
-                pG = G.subgraph(p)
-                GL += [list(cc) for cc in pG.connected_components()]
-            
-            # add to group list
-            #GL += parts
-        else:
-            GL += [list(subV)]
-
-    SL = []
-    for p in GL:
-        pG = G.subgraph(p)
-        SL += [nx.maximal_independent_set(pG.to_networkx())]
 
     def long_int2int(xs):
         return [np.uint32(x).item() for x in xs]

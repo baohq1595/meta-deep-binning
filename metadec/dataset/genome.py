@@ -30,9 +30,7 @@ def read_bimeta_cache(filename):
 
     groups = parse_file_helper(filename)
     seeds = parse_file_helper(filename.replace('group', 'seed'))
-
-    # for i in range(len(groups)):
-    #     groups[i].extend(seeds[i])
+    
     print(len(groups))
     print(len(seeds))
     
@@ -70,7 +68,10 @@ class SimGenomeDataset():
 
         if is_deserialize:
             # Deserializing data...
-            self.groups, self.seeds, self.label2idx = self.deserialize_data(graph_file)
+            self.groups, self.seeds, label2idx = self.deserialize_data(graph_file)
+            self.reads = None
+            if len(label2idx) != 0:
+                self.label2idx = label2idx
         else:
             # Build overlapping (reads) graph
             # graph = build_overlap_graph(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads)
@@ -111,7 +112,7 @@ class SimGenomeDataset():
         serialize_dict = {
             'groups': groups,
             'seeds': seeds,
-            'label2idx': str(label2idx)
+            'label2idx': label2idx
         }
 
         with open(graph_file, 'w') as fg:
@@ -183,7 +184,9 @@ class AMDGenomeDataset():
 
         if is_deserialize:
             # Deserializing data...
-            self.groups, self.seeds, self.label2idx = self.deserialize_data(graph_file)
+            self.groups, self.seeds, label2idx = self.deserialize_data(graph_file)
+            if len(label2idx) != 0:
+                self.label2idx = label2idx
         else:
             # Build overlapping (reads) graph
             # graph = build_overlap_graph_low_mem(self.reads, self.labels, qmers, num_shared_reads=num_shared_reads, parts=20, comp='gzip')
@@ -221,7 +224,7 @@ class AMDGenomeDataset():
         serialize_dict = {
             'groups': groups,
             'seeds': seeds,
-            'label2idx': str(label2idx)
+            'label2idx': label2idx
         }
 
         with open(graph_file, 'w') as fg:
