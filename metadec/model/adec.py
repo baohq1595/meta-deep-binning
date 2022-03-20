@@ -12,7 +12,7 @@ from tensorflow.keras.optimizers import Adam, SGD
 from tensorflow.keras import losses
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.datasets import mnist
-import keras.backend as K
+import tensorflow.keras.backend as K
 
 import matplotlib.pyplot as plt
 

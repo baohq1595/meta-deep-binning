@@ -88,7 +88,7 @@ def main():
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         
-        is_deserialize = os.path.exists(os.path.join(processed_dir, dataset_name + '.json')) and args.load_cache
+        is_deserialize = cache_path != '' and args.load_cache
         is_serialize = args.cache
         n_clusters = args.n_clusters
         
@@ -155,16 +155,16 @@ def main():
         adec.cluster_optim = Adam(0.0001, epsilon=1e-8)
 
         print('Model cluster: ', adec.n_clusters)
-        wandb.init(project="adec-paper-revise-cami", config={
-            'name': dataset_name,
-            'n_clusters': n_clusters,
-            'n_shared_reads': num_shared_read,
-            'lmer': lmers,
-            'max_seeds_size': max_seed_size,
-            'arch': base_arch,
-            'lr': initial_lr,
-            'lambda': l_coef
-        })
+        #wandb.init(project="adec-paper-revise-cami", config={
+        #    'name': dataset_name,
+        #    'n_clusters': n_clusters,
+        #    'n_shared_reads': num_shared_read,
+        #    'lmer': lmers,
+        #    'max_seeds_size': max_seed_size,
+        #    'arch': base_arch,
+        #    'lr': initial_lr,
+        #    'lambda': l_coef
+        #})
         
         pretrain(model=adec,
             seeds=seed_kmer_features,

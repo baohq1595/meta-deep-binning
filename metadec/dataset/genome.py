@@ -3,7 +3,7 @@ import json
 import os, pickle
 from sklearn.preprocessing import OneHotEncoder, normalize, StandardScaler
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
-
+from compress_pickle import dump as dump_pickle
 from metadec.dataset.utils import *
 
 def read_bimeta_cache(filename):
@@ -104,9 +104,11 @@ class SimGenomeDataset():
             # Normalizing...
             scaler = StandardScaler()
             self.kmer_features = scaler.fit_transform(self.kmer_features)
-
+        
+        from compress_pickle import dump as dump_pickle
         with open(os.path.join('temp', 'kmer_features'), 'wb') as f:
-            pickle.dump(self.kmer_features, f)
+            #pickle.dump(self.kmer_features, f)
+            dump_pickle(self.kmer_features, f, compression='gzip', set_default_extension=False)
     
     def serialize_data(self, groups, seeds, label2idx, graph_file):
         '''
@@ -164,6 +166,8 @@ class AMDGenomeDataset():
         self.serialize_from_bimeta = serialize_from_bimeta
         self.reads, self.labels, self.label2idx = load_amd_reads(fna_file)
 
+        print(f'Found {len(self.reads)} reads')
+
         # Creating document from reads...
         if not os.path.exists(os.path.join('temp', 'corpus')):
             dictionary, documents = create_document(self.reads, kmers)
@@ -174,16 +178,18 @@ class AMDGenomeDataset():
             if not os.path.exists('temp'):
                 os.makedirs('temp')
 
-            with open(os.path.join('temp', 'corpus'), 'wb') as f:
-                pickle.dump(corpus, f)
+            #with open(os.path.join('temp', 'corpus'), 'wb') as f:
+            #    pickle.dump(corpus, f)
 
-            with open(os.path.join('temp', 'documents'), 'wb') as f:
-                pickle.dump(documents, f)
+            #with open(os.path.join('temp', 'documents'), 'wb') as f:
+            #    pickle.dump(documents, f)
 
-            with open(os.path.join('temp', 'dictionary'), 'wb') as f:
-                pickle.dump(dictionary, f)
+            #with open(os.path.join('temp', 'dictionary'), 'wb') as f:
+            #    pickle.dump(dictionary, f)
 
-            del corpus, dictionary, documents
+            #del corpus, dictionary, documents
+            self.reads = None
+            documents = None
 
         self.groups = []
         self.seeds = []
@@ -201,14 +207,14 @@ class AMDGenomeDataset():
             self.groups, self.seeds = metis_partition_groups_seeds_stellargraph(graph, maximum_seed_size)
                 
         # Computing features...
-        with open(os.path.join('temp', 'corpus'), 'rb') as f:
-            corpus = pickle.load(f)
+        #with open(os.path.join('temp', 'corpus'), 'rb') as f:
+        #    corpus = pickle.load(f)
 
-        with open(os.path.join('temp', 'dictionary'), 'rb') as f:
-            dictionary = pickle.load(f)
+        #with open(os.path.join('temp', 'dictionary'), 'rb') as f:
+        #    dictionary = pickle.load(f)
 
-        with open(os.path.join('temp', 'documents'), 'rb') as f:
-            documents = pickle.load(f)
+        #with open(os.path.join('temp', 'documents'), 'rb') as f:
+        #    documents = pickle.load(f)
         self.kmer_features = compute_kmer_dist(dictionary, corpus, self.groups, self.seeds, only_seed=only_seed)
         del dictionary
         del corpus
@@ -216,7 +222,7 @@ class AMDGenomeDataset():
 
         if is_serialize:
             print('Serializing data to...', graph_file)
-            self.serialize_data(self.groups, self.seeds, self.label2idx, graph_file)
+            self.serialize_data(self.groups, self.seeds, self.label2idx, self.labels, graph_file)
 
         if is_normalize:
             # Normalizing...
@@ -224,17 +230,19 @@ class AMDGenomeDataset():
             self.kmer_features = scaler.fit_transform(self.kmer_features)
         
         with open(os.path.join('temp', 'kmer_features'), 'wb') as f:
-            pickle.dump(self.kmer_features, f)
+            pickle.dump(self.kmer_features, f, protocol=4)
+            #dump_pickle(self.kmer_features, f, compression='gzip', set_default_extension=False)
 
 
     
-    def serialize_data(self, groups, seeds, label2idx, graph_file):
+    def serialize_data(self, groups, seeds, label2idx, labels, graph_file):
         '''
         Save groups and seeds id to json file
         '''
         serialize_dict = {
             'groups': groups,
             'seeds': seeds,
+            'labels': labels,
             'label2idx': label2idx
         }
 

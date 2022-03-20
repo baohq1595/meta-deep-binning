@@ -1,5 +1,5 @@
-python main.py -d "data/real/raw/" \
-            -n unified_labeled_toy_hmp_cami \
+python main.py -d "data/real/raw" \
+            -n unified_label_toy_cami_hmp \
             -l 30 \
             --n_shared_read 5 \
             --seed_size 30 \
