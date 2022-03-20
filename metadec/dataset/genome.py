@@ -1,6 +1,7 @@
 import imp
 import json
 import os, pickle
+from django import conf
 from sklearn.preprocessing import OneHotEncoder, normalize, StandardScaler
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from compress_pickle import dump as dump_pickle
@@ -30,9 +31,6 @@ def read_bimeta_cache(filename):
 
     groups = parse_file_helper(filename)
     seeds = parse_file_helper(filename.replace('group', 'seed'))
-    
-    print(len(groups))
-    print(len(seeds))
     
     return groups, seeds, {}
 
@@ -229,10 +227,10 @@ class AMDGenomeDataset():
             scaler = StandardScaler()
             self.kmer_features = scaler.fit_transform(self.kmer_features)
         
-        with open(os.path.join('temp', 'kmer_features'), 'wb') as f:
-            pickle.dump(self.kmer_features, f, protocol=4)
-            #dump_pickle(self.kmer_features, f, compression='gzip', set_default_extension=False)
-
+        if is_serialize:
+            with open(os.path.join('temp', 'kmer_features'), 'wb') as f:
+                pickle.dump(self.kmer_features, f, protocol=4)
+                #dump_pickle(self.kmer_features, f, compression='gzip', set_default_extension=False)
 
     
     def serialize_data(self, groups, seeds, label2idx, labels, graph_file):
@@ -269,3 +267,153 @@ class AMDGenomeDataset():
             label2idx = data['label2idx']
 
         return groups, seeds, label2idx
+
+
+class DatasetConfig:
+    kmers = [4]
+    qmers = 30
+    num_shared_reads = 5
+    maximum_seed_size = 5000
+    only_seed = True
+    is_normalize = True
+    is_tfidf = False
+    cache_bimeta_format = False
+    is_amd_format = False
+    load_feature_cache = False
+    save_feature_cache = False
+    load_graph_cache = False
+    save_graph_cache = False
+    cache_for_graph = ''
+    cache_for_feature = ''
+
+    def print():
+        print('****Config details****')
+        print(f'kmers: {DatasetConfig.kmers}')
+        print(f'qmers: {DatasetConfig.qmers}')
+        print(f'num_shared_reads: {DatasetConfig.num_shared_reads}')
+        print(f'maximum_seed_size: {DatasetConfig.maximum_seed_size}')
+        print(f'only_seed: {DatasetConfig.only_seed}')
+        print(f'cache_bimeta_format: {DatasetConfig.cache_bimeta_format}')
+        print(f'is_amd_format: {DatasetConfig.is_amd_format}')
+        print(f'load_feature_cache: {DatasetConfig.load_feature_cache}')
+        print(f'load_graph_cache: {DatasetConfig.load_graph_cache}')
+        print(f'save_feature_cache: {DatasetConfig.save_feature_cache}')
+        print(f'save_graph_cache: {DatasetConfig.save_graph_cache}')
+
+
+
+class BaseDataset:
+    def __init__(self, fna_file, config: DatasetConfig):
+        graph_path = config.cache_for_graph
+        feat_path = config.cache_for_feature
+
+        self.groups = None
+        self.seeds = None
+        self.labels = None
+        self.label2idx = None
+        self.kmer_feature = None
+
+        # We have everything necessary for running form cache
+        if config.load_feature_cache != '':
+            if not os.path.exists(graph_path) or not os.path.exists(feat_path):
+                raise Exception('Cache path not found, either for graph or feature.')
+            # load groups, seeds from cache file
+            with open(graph_path, 'r') as f:
+                self.groups, self.seeds, self.labels, self.label2idx = self._read_graph_cache(graph_path, config.cache_bimeta_format)
+            # load kmer feature from pickle
+            with open(feat_path, 'rb') as f:
+                self.kmer_feature = pickle.load(f, protocol=4)
+        # Only cache for groups, seeds is available
+        else:
+            self.reads, self.labels, self.label2idx = self.load_read_file(fna_file)
+
+            if config.load_graph_cache:
+                with open(graph_path, 'r') as f:
+                    self.groups, self.seeds, self.labels, self.label2idx = self._read_graph_cache(graph_path, config.cache_bimeta_format)
+            else:
+                # Build overlapping (reads) graph
+                graph = build_overlap_graph(self.reads, self.labels, config.qmers, num_shared_reads=config.num_shared_reads)
+                # Partitioning graph...
+                self.groups, self.seeds = metis_partition_groups_seeds(graph, config.maximum_seed_size)
+
+            self.kmer_feature = self._build_feature(config)
+
+        # check if save cache is on, if yes, save cache
+        if config.save_graph_cache:
+            self.save_graph_cache(self.groups, self.seeds, self.labels, self.label2idx, graph_path)
+
+        if config.save_feature_cache:
+            with open(feat_path, 'wb') as f:
+                pickle.dump(self.kmer_features, f, protocol=4)
+
+    def save_graph_cache(self, groups, seeds, label2idx, labels, graph_file):
+        '''
+        Save groups and seeds id to json file
+        '''
+        serialize_dict = {
+            'groups': groups,
+            'seeds': seeds,
+            'labels': labels,
+            'label2idx': label2idx
+        }
+
+        if 'json' not in graph_file:
+            graph_file = graph_file.split('.')[0] + '.json'
+
+        with open(graph_file, 'w') as fg:
+            json.dump(serialize_dict, fg)
+        
+        return graph_file
+            
+
+    def load_read_file(self, path):
+        raise NotImplementedError('Should be inherited!')
+
+    def _build_feature(self, config: DatasetConfig):
+        dictionary, documents = create_document(self.reads, config.kmers)
+
+        # Creating corpus...
+        corpus = create_corpus(dictionary, documents, is_tfidf=config.is_tfidf)
+        documents = None # free some memory
+
+        kmer_features = compute_kmer_dist(dictionary, corpus, self.groups, self.seeds, only_seed=config.only_seed)
+        # Normalizing...
+        if config.is_normalize:
+            scaler = StandardScaler()
+            kmer_features = scaler.fit_transform(kmer_features)
+
+        return kmer_features
+
+
+    def _read_graph_cache(self, graph_path, bimeta_format):
+        '''
+        Read groups and seeds from file
+        '''
+        if bimeta_format:
+            groups, seeds, label2idx = read_bimeta_cache(graph_path)
+        else:
+            with open(graph_path, 'r') as fg:
+                data = json.load(fg)
+
+            groups = data['groups']
+            seeds = data['seeds']
+            labels = data['labels']
+            label2idx = data['label2idx']
+
+        return groups, seeds, labels, label2idx
+
+class SimulatedDataset(BaseDataset):
+    def __init__(self, fna_file, config: DatasetConfig):
+        super().__init__(fna_file, config)
+
+    def load_read_file(self, path):
+        reads, labels, label2idx = load_meta_reads(path, type='fasta')
+        return reads, labels, label2idx
+
+class RealDataset(BaseDataset):
+    def __init__(self, fna_file, config: DatasetConfig):
+        super().__init__(fna_file, config)
+
+    def load_read_file(self, path):
+        reads, labels, label2idx = load_amd_reads(path)
+        return reads, labels, label2idx

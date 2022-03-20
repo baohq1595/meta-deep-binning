@@ -1,5 +1,6 @@
 import json
-from metadec.dataset.genome import SimGenomeDataset, AMDGenomeDataset
+from metadec.dataset.genome import SimGenomeDataset, AMDGenomeDataset, DatasetConfig,\
+    SimulatedDataset, RealDataset
 
 def load_genomics(dataset_name,
                     kmers, 
@@ -54,6 +55,14 @@ def load_genomics(dataset_name,
             serialize_from_bimeta=serialize_from_bimeta)
 
     return genomics_dataset
+
+def load_dataset(dataset_path, dataset_config):
+    if dataset_config.is_amd_format:
+        dataset = RealDataset(dataset_path, dataset_config)
+    else:
+        dataset = SimulatedDataset(dataset_path, dataset_config)
+
+    return dataset
 
 def export_clustering_results(raw_reads, groups, n_clusters, y_pred, save_path):
     exported_results = {k+1: [] for k in range(n_clusters)}

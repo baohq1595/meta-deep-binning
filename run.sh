@@ -5,8 +5,9 @@ python main.py -d "data/real/raw" \
             --seed_size 30 \
             --n_clusters 35 \
             --result_dir result \
-            --load_cache \
-            --cache \
-            --cache_path "data/real/processed/unified_label_toy_cami_hmp.fna.groups.txt" \
             --is_amd \
-            --from_bimeta
+            --load_feature_cache \
+            --load_graph_cache \
+            --graph_cache "data/real/processed/unified_label_toy_cami_hmp.fna.groups.json" \
+            --kfeature_cache "data/real/processed/unified_label_toy_cami_hmp" \
+            

@@ -1,3 +1,4 @@
+from distutils.command.config import config
 import glob, os, time
 import json
 import argparse
@@ -13,12 +14,30 @@ from metadec.dataset.genome import SimGenomeDataset
 from metadec.model.dec import DEC
 from metadec.model.idec import IDEC
 from metadec.model.adec import *
-from metadec.utils.utils import load_genomics
+from metadec.utils.utils import load_genomics, load_dataset
 from metadec.debug.visualize import store_results
 from metadec.utils.metrics import genome_acc
+from metadec.dataset.genome import DatasetConfig as global_dataset_config
 
 import sys
 sys.path.append('.')
+
+def parse_cmd_args_to_data_config(args):
+    global_dataset_config.qmers = args.lmer
+    global_dataset_config.num_shared_reads = args.n_shared_read
+    global_dataset_config.maximum_seed_size = args.seed_size
+    global_dataset_config.is_amd_format = args.is_amd
+    global_dataset_config.load_feature_cache = args.load_feature_cache
+    global_dataset_config.load_graph_cache = args.load_graph_cache
+    global_dataset_config.save_feature_cache = args.save_feat_cache
+    global_dataset_config.save_graph_cache = args.save_graph_cache
+    global_dataset_config.cache_for_graph = args.graph_cache
+    global_dataset_config.cache_for_feature = args.kfeature_cache
+    global_dataset_config.cache_bimeta_format = args.from_bimeta
+
+    global_dataset_config.print()
+    
+    return global_dataset_config
 
 def main():
 
@@ -31,9 +50,12 @@ def main():
     parser.add_argument('--seed_size', type=int, help='Maximum seed size')
     parser.add_argument('--n_clusters', type=int, help='Number of clusters')
     parser.add_argument('--phase1_only', action='store_true', help='Generate data and finish, no training')
-    parser.add_argument('--load_cache', action='store_true', help='Load phase 1 from cache. Cache file path is data_dir.parent/processed')
-    parser.add_argument('--cache', action='store_true', help='Cache phase 1 result. Cache file path is data_dir.parent/processed')
-    parser.add_argument('--cache_path', type=str, default='', help='path for loading cache')
+    parser.add_argument('--load_feature_cache', action='store_true', help='Load phase 1 from cache. Cache file path is data_dir.parent/processed')
+    parser.add_argument('--load_graph_cache', action='store_true', help='Load phase 1 from cache. Cache file path is data_dir.parent/processed')
+    parser.add_argument('--save_graph_cache', action='store_true', help='Cache phase 1 group/seed result. Cache file path is data_dir.parent/processed')
+    parser.add_argument('--save_feat_cache', action='store_true', help='Cache phase 1 kmer feature result. Cache file path is data_dir.parent/processed')
+    parser.add_argument('--graph_cache', type=str, default='', help='path for loading graph cache')
+    parser.add_argument('--kfeature_cache', type=str, default='', help='path for loading feature cache')
     parser.add_argument('--is_amd', action='store_true', help='Turn on to False for simulated datasets, otherwise, turn off')
     parser.add_argument('--from_bimeta', action='store_true', help='Read cache in bimeta format')
     parser.add_argument('--result_dir', type=str, default='results', help='directory for saving the resuls')
@@ -97,20 +119,23 @@ def main():
         print(f'Prior number of clusters: {n_clusters}...')
         print(f'Prior number of shared reads: {num_shared_read}...')
 
-        genome_dataset = load_genomics(
-            dataset,
-            kmers=KMERS,
-            lmer=lmers,
-            maximum_seed_size=max_seed_size,
-            num_shared_reads=num_shared_read,
-            is_deserialize=is_deserialize,
-            is_serialize=is_serialize,
-            is_normalize=True,
-            only_seed=ONLY_SEED,
-            graph_file=cache_path,
-            is_amd=is_amd,
-            serialize_from_bimeta=args.from_bimeta
-        )
+        # genome_dataset = load_genomics(
+        #     dataset,
+        #     kmers=KMERS,
+        #     lmer=lmers,
+        #     maximum_seed_size=max_seed_size,
+        #     num_shared_reads=num_shared_read,
+        #     is_deserialize=is_deserialize,
+        #     is_serialize=is_serialize,
+        #     is_normalize=True,
+        #     only_seed=ONLY_SEED,
+        #     graph_file=cache_path,
+        #     is_amd=is_amd,
+        #     serialize_from_bimeta=args.from_bimeta
+        # )
+
+        global_dataset_config = parse_cmd_args_to_data_config(args=args)
+        genome_dataset = load_dataset(dataset_path=dataset, config=global_dataset_config)
 
         seed_kmer_features, labels, groups, seeds, label2idx = genome_dataset.kmer_features, genome_dataset.labels,\
                                                                 genome_dataset.groups, genome_dataset.seeds,\
@@ -155,16 +180,16 @@ def main():
         adec.cluster_optim = Adam(0.0001, epsilon=1e-8)
 
         print('Model cluster: ', adec.n_clusters)
-        #wandb.init(project="adec-paper-revise-cami", config={
-        #    'name': dataset_name,
-        #    'n_clusters': n_clusters,
-        #    'n_shared_reads': num_shared_read,
-        #    'lmer': lmers,
-        #    'max_seeds_size': max_seed_size,
-        #    'arch': base_arch,
-        #    'lr': initial_lr,
-        #    'lambda': l_coef
-        #})
+        wandb.init(project="adec-paper-revise-cami", config={
+           'name': dataset_name,
+           'n_clusters': n_clusters,
+           'n_shared_reads': num_shared_read,
+           'lmer': lmers,
+           'max_seeds_size': max_seed_size,
+           'arch': base_arch,
+           'lr': initial_lr,
+           'lambda': l_coef
+        })
         
         pretrain(model=adec,
             seeds=seed_kmer_features,
